@@ -348,12 +348,41 @@ function Select({ children, ...props }) {
 
 function ProductImage({ product, height = 88, fontSize = 40 }) {
   const f = flavorFor(product.name);
-  if (product.image) {
-    return <div style={{ height, background: `linear-gradient(135deg, ${f.color}22, #000)`, overflow: "hidden" }}>
-      <img src={product.image} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+  const imgs = getProductImages(product);
+  if (imgs.length) {
+    return <div style={{ height, background: `linear-gradient(135deg, ${f.color}22, #000)`, overflow: "hidden", position: "relative" }}>
+      <img src={imgs[0]} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      {imgs.length > 1 && <span style={{ position: "absolute", right: 6, top: 6, background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 999, padding: "2px 7px" }}>+{imgs.length - 1}</span>}
     </div>;
   }
   return <div style={{ height, background: `linear-gradient(135deg, ${f.color}55, ${f.color}10)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize }}>{f.emoji}</div>;
+}
+
+function ImageGallery({ images, name, color, emoji }) {
+  const [idx, setIdx] = useState(0);
+  if (!images.length) {
+    return <div style={{ height: "100%", background: `linear-gradient(160deg, ${color}77, ${color}10)`, display: "flex", alignItems: "flex-end", padding: 20 }}>
+      <div style={{ fontSize: 110, position: "absolute", right: 10, top: 30, opacity: 0.9 }}>{emoji}</div>
+    </div>;
+  }
+  const prev = () => setIdx((i) => (i - 1 + images.length) % images.length);
+  const next = () => setIdx((i) => (i + 1) % images.length);
+  return (
+    <div style={{ height: "100%", position: "relative", background: "#000" }}>
+      <img src={images[idx]} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      {images.length > 1 && (
+        <>
+          <button onClick={prev} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.55)", border: "none", color: "#fff", borderRadius: 999, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronLeft size={18} /></button>
+          <button onClick={next} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.55)", border: "none", color: "#fff", borderRadius: 999, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronRight size={18} /></button>
+          <div style={{ position: "absolute", bottom: 12, left: 0, right: 0, display: "flex", gap: 5, justifyContent: "center" }}>
+            {images.map((_, i) => (
+              <span key={i} onClick={() => setIdx(i)} style={{ width: i === idx ? 20 : 6, height: 6, borderRadius: 999, background: i === idx ? "#fff" : "rgba(255,255,255,0.5)", cursor: "pointer", transition: "width .2s" }} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 /* ---------------- LOGIN MODAL ---------------- */
