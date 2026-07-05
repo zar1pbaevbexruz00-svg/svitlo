@@ -987,26 +987,47 @@ function ShopsTab({ shops, setShops }) {
   );
 }
 
+const MAX_IMAGES = 15;
 function ProductsTab({ products, setProducts, categories }) {
   const [form, setForm] = useState(null);
   const fileRef = useRef(null);
-  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", desc: "", popular: false, image: "" });
+  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", desc: "", popular: false, images: [] });
+  const startEdit = (p) => setForm({ ...p, price: String(p.price), images: getProductImages(p) });
   const save = () => {
     if (!form.name.trim() || !form.price) return;
-    if (form.id) setProducts(products.map((p) => (p.id === form.id ? { ...form, price: Number(form.price) } : p)));
-    else setProducts([...products, { ...form, id: uid(), price: Number(form.price) }]);
+    const clean = { ...form, price: Number(form.price), images: form.images || [], image: "" };
+    if (form.id) setProducts(products.map((p) => (p.id === form.id ? clean : p)));
+    else setProducts([...products, { ...clean, id: uid() }]);
     setForm(null);
   };
   const remove = (id) => setProducts(products.filter((p) => p.id !== id));
 
-  const onFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { alert("Rasm 2MB dan katta bo'lmasin"); return; }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, image: reader.result }));
-    reader.readAsDataURL(file);
+  const onFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const room = MAX_IMAGES - (form.images?.length || 0);
+    if (room <= 0) { alert(`Maksimum ${MAX_IMAGES} ta rasm`); return; }
+    const slice = files.slice(0, room);
+    Promise.all(slice.map((file) => new Promise((res) => {
+      if (file.size > 2 * 1024 * 1024) { res(null); return; }
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = () => res(null);
+      r.readAsDataURL(file);
+    }))).then((results) => {
+      const ok = results.filter(Boolean);
+      setForm((f) => ({ ...f, images: [...(f.images || []), ...ok] }));
+      if (results.some((r) => !r)) alert("Ba'zi rasmlar 2MB dan katta bo'lgani uchun tashlab yuborildi");
+    });
+    e.target.value = "";
   };
+  const removeImg = (i) => setForm((f) => ({ ...f, images: f.images.filter((_, idx) => idx !== i) }));
+  const moveImg = (i, dir) => setForm((f) => {
+    const arr = [...f.images]; const j = i + dir;
+    if (j < 0 || j >= arr.length) return f;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    return { ...f, images: arr };
+  });
 
   return (
     <>
@@ -1015,21 +1036,31 @@ function ProductsTab({ products, setProducts, categories }) {
       </div>
       {form && (
         <GlassCard>
-          <div style={{ display: "flex", gap: 12, marginBottom: 10, alignItems: "flex-start" }}>
-            <div style={{ width: 110, height: 110, borderRadius: 14, border: "1px dashed var(--border)", overflow: "hidden",
-                display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.03)", flexShrink: 0 }}>
-              {form.image ? (
-                <img src={form.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                <ImageIcon size={28} color="var(--dim)" />
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>Rasmlar ({form.images?.length || 0}/{MAX_IMAGES})</div>
+              <div>
+                <input ref={fileRef} type="file" accept="image/*" multiple onChange={onFiles} style={{ display: "none" }} />
+                <GhostBtn onClick={() => fileRef.current?.click()} primary><ImageIcon size={12} /> Rasm(lar) yuklash</GhostBtn>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(90px,1fr))", gap: 8 }}>
+              {(form.images || []).map((src, i) => (
+                <div key={i} style={{ position: "relative", height: 90, borderRadius: 10, overflow: "hidden", border: "1px solid var(--border)" }}>
+                  <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  {i === 0 && <span style={{ position: "absolute", top: 4, left: 4, background: "var(--accent)", color: "#fff", fontSize: 9, fontWeight: 700, borderRadius: 4, padding: "2px 5px" }}>ASOSIY</span>}
+                  <button onClick={() => removeImg(i)} style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", borderRadius: 6, width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={11} /></button>
+                  <div style={{ position: "absolute", bottom: 4, left: 4, right: 4, display: "flex", gap: 3, justifyContent: "space-between" }}>
+                    <button onClick={() => moveImg(i, -1)} disabled={i === 0} style={{ flex: 1, background: "rgba(0,0,0,0.6)", border: "none", color: i === 0 ? "#555" : "#fff", borderRadius: 4, fontSize: 10, padding: "2px 0" }}>◀</button>
+                    <button onClick={() => moveImg(i, 1)} disabled={i === form.images.length - 1} style={{ flex: 1, background: "rgba(0,0,0,0.6)", border: "none", color: i === form.images.length - 1 ? "#555" : "#fff", borderRadius: 4, fontSize: 10, padding: "2px 0" }}>▶</button>
+                  </div>
+                </div>
+              ))}
+              {(!form.images || form.images.length === 0) && (
+                <div style={{ height: 90, borderRadius: 10, border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--dim)" }}><ImageIcon size={24} /></div>
               )}
             </div>
-            <div style={{ flex: 1 }}>
-              <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ display: "none" }} />
-              <GhostBtn onClick={() => fileRef.current?.click()}><ImageIcon size={12} /> Rasm yuklash</GhostBtn>
-              {form.image && <GhostBtn danger style={{ marginLeft: 6 }} onClick={() => setForm({ ...form, image: "" })}><Trash2 size={12} /></GhostBtn>}
-              <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 6 }}>PNG/JPG, max 2MB. Bo'sh bo'lsa emoji ishlatiladi.</div>
-            </div>
+            <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 6 }}>10-15 tagacha rasm yuklash mumkin. Har biri max 2MB. Birinchi rasm asosiy hisoblanadi.</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
             <Field placeholder="Nomi" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
