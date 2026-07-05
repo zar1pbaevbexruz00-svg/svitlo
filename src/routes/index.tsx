@@ -111,6 +111,72 @@ function printReceipt(order, info) {
   win.document.close();
 }
 
+/* ---------------- PDF helpers ---------------- */
+function downloadReceiptPDF(order, info) {
+  const doc = new jsPDF({ unit: "mm", format: [80, 200] });
+  let y = 8;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+  doc.text(info.name || "Chek", 40, y, { align: "center" }); y += 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  if (info.tagline) { doc.text(info.tagline, 40, y, { align: "center" }); y += 4; }
+  doc.text(`${info.address || ""} · ${info.phone || ""}`, 40, y, { align: "center" }); y += 4;
+  doc.setLineDashPattern([1, 1], 0); doc.line(4, y, 76, y); y += 4;
+  doc.setFontSize(9);
+  doc.text(`Chek: ${order.id.toUpperCase()}`, 4, y); y += 4;
+  doc.text(`Sana: ${new Date(order.createdAt).toLocaleString("uz-UZ")}`, 4, y); y += 4;
+  doc.text(`Mijoz: ${order.customerName}`, 4, y); y += 4;
+  doc.text(`Tel: ${order.phone}`, 4, y); y += 4;
+  const addrLines = doc.splitTextToSize(`Manzil: ${order.address}`, 72);
+  addrLines.forEach((l) => { doc.text(l, 4, y); y += 4; });
+  doc.line(4, y, 76, y); y += 4;
+  order.items.forEach((it) => {
+    doc.text(`${it.name} x${it.qty}`, 4, y);
+    doc.text(fmt(it.price * it.qty), 76, y, { align: "right" });
+    y += 4;
+  });
+  doc.line(4, y, 76, y); y += 5;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+  doc.text("JAMI", 4, y); doc.text(fmt(order.total), 76, y, { align: "right" }); y += 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  doc.text(`To'lov: ${order.paymentMethod} · ${order.paymentStatus}`, 4, y); y += 5;
+  doc.text("Rahmat! Yana tashrif buyuring", 40, y, { align: "center" });
+  doc.save(`chek-${order.id}.pdf`);
+}
+
+function downloadSalesReportPDF(period, orders, info) {
+  const doc = new jsPDF();
+  doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.text(`${info.name || "Do'kon"} — Savdo hisoboti`, 14, 16);
+  doc.setFontSize(10); doc.setFont("helvetica", "normal");
+  doc.text(`Davr: ${period.label}   ·   Yaratilgan: ${new Date().toLocaleString("uz-UZ")}`, 14, 23);
+  const revenue = orders.reduce((s, o) => s + (o.paymentStatus === "to'langan" ? o.total : 0), 0);
+  const debt = orders.reduce((s, o) => s + (o.paymentStatus === "qarz" ? o.total : 0), 0);
+  const qty = orders.reduce((s, o) => s + o.items.reduce((x, it) => x + it.qty, 0), 0);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+  doc.text(`Buyurtmalar: ${orders.length}   Sotilgan dona: ${qty}   Tushum: ${fmt(revenue)}   Qarz: ${fmt(debt)}`, 14, 32);
+  autoTable(doc, {
+    startY: 38,
+    head: [["Sana", "Mijoz", "Tel", "Mahsulotlar", "Summa", "To'lov"]],
+    body: orders.map((o) => [
+      new Date(o.createdAt).toLocaleString("uz-UZ"),
+      o.customerName, o.phone,
+      o.items.map((i) => `${i.name} x${i.qty}`).join(", "),
+      fmt(o.total),
+      `${o.paymentMethod} · ${o.paymentStatus}`,
+    ]),
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [124, 108, 255] },
+  });
+  doc.save(`hisobot-${period.key}-${Date.now()}.pdf`);
+}
+
+/* ---------------- image helpers ---------------- */
+function getProductImages(p) {
+  if (Array.isArray(p.images) && p.images.length) return p.images;
+  if (p.image) return [p.image];
+  return [];
+}
+
 /* ---------------- root ---------------- */
 function App() {
   const [mode, setMode] = useState("client");
