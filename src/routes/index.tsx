@@ -3,10 +3,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Search, ShoppingBag, Plus, Minus, Trash2, MapPin, Package,
-  Users, Truck, Settings, BarChart2, X, Check, Edit2, ChevronLeft,
+  Users, Truck, Settings, BarChart2, X, Check, Edit2, ChevronLeft, ChevronRight,
   Clock, TrendingUp, Tag, Snowflake, Save, Lock, LogOut, Copy,
-  CreditCard, Banknote, AlertCircle, Store, Wallet, Star, Printer, Image as ImageIcon
+  CreditCard, Banknote, AlertCircle, Store, Wallet, Star, Printer, Image as ImageIcon,
+  FileDown, Radio
 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export const Route = createFileRoute("/")({
   head: () => ({
