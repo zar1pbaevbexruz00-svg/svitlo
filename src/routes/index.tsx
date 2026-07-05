@@ -640,18 +640,13 @@ function CatChip({ label, active, onClick }) {
 
 function ProductDetail({ product, onBack, qty, onAdd, onSub }) {
   const f = flavorFor(product.name);
+  const imgs = getProductImages(product);
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh" }}>
-      <div style={{ height: 280, position: "relative", overflow: "hidden" }}>
-        {product.image ? (
-          <img src={product.image} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          <div style={{ height: "100%", background: `linear-gradient(160deg, ${f.color}77, ${f.color}10)`, display: "flex", alignItems: "flex-end", padding: 20 }}>
-            <div style={{ fontSize: 110, position: "absolute", right: 10, top: 30, opacity: 0.9 }}>{f.emoji}</div>
-          </div>
-        )}
+      <div style={{ height: 320, position: "relative", overflow: "hidden" }}>
+        <ImageGallery images={imgs} name={product.name} color={f.color} emoji={f.emoji} />
         <button onClick={onBack} style={{ position: "absolute", top: 20, left: 20, background: "rgba(0,0,0,0.55)", border: "none", color: "#fff",
-            borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronLeft size={20} /></button>
+            borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5 }}><ChevronLeft size={20} /></button>
       </div>
       <div style={{ padding: 20 }}>
         <div style={{ fontSize: 24, fontWeight: 800 }}>{product.name}</div>
