@@ -207,6 +207,22 @@ function App() {
     setLoaded(true);
   }, []);
 
+  // Real-time cross-tab sync: when another tab (admin/employee/client) updates
+  // localStorage, mirror it here so status changes reflect live.
+  useEffect(() => {
+    const map = {
+      pi_info: setInfo, pi_categories: setCategories, pi_products: setProducts,
+      pi_shops: setShops, pi_employees: setEmployees, pi_vehicles: setVehicles,
+      pi_orders: setOrders, pi_debt_payments: setDebtPayments, pi_admin_auth: setAdminAuth,
+    };
+    const onStorage = (e) => {
+      if (!e.key || !(e.key in map) || e.newValue == null) return;
+      try { map[e.key](JSON.parse(e.newValue)); } catch { /* ignore */ }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   const persist = {
     info: (v) => { setInfo(v); safeSet("pi_info", v); },
     categories: (v) => { setCategories(v); safeSet("pi_categories", v); },
