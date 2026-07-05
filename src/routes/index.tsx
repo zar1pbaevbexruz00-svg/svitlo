@@ -785,6 +785,7 @@ function OrdersTab({ orders, setOrders, shops, employees, vehicles, setVehicles,
             <span style={{ fontWeight: 800 }}>{fmt(o.total)}</span>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               <GhostBtn onClick={() => printReceipt(o, info)}><Printer size={12} /> Chek</GhostBtn>
+              <GhostBtn onClick={() => downloadReceiptPDF(o, info)}><FileDown size={12} /> PDF</GhostBtn>
               {o.paymentStatus === "qarz" && <GhostBtn onClick={() => setField(o.id, "paymentStatus", "to'langan")}>Qarzni yopish</GhostBtn>}
               <GhostBtn onClick={() => copyOrder(o, shops, employees)}><Copy size={12} /> Nusxa</GhostBtn>
               <GhostBtn danger onClick={() => remove(o.id)}><Trash2 size={12} /></GhostBtn>
