@@ -1173,36 +1173,103 @@ function DebtorsTab({ orders, setOrders, debtPayments, setDebtPayments }) {
   );
 }
 
-function ReportTab({ orders }) {
-  const totalRevenue = orders.reduce((s, o) => s + (o.paymentStatus === "to'langan" ? o.total : 0), 0);
-  const totalDebt = orders.filter((o) => o.paymentStatus === "qarz").reduce((s, o) => s + o.total, 0);
-  const today = todayStr();
-  const todayOrders = orders.filter((o) => new Date(o.createdAt).toDateString() === today);
-  const todayRevenue = todayOrders.reduce((s, o) => s + (o.paymentStatus === "to'langan" ? o.total : 0), 0);
+function ReportTab({ orders, info }) {
+  const [period, setPeriod] = useState("day");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  const range = useMemo(() => {
+    const now = new Date();
+    const end = new Date(now); end.setHours(23, 59, 59, 999);
+    const start = new Date(now); start.setHours(0, 0, 0, 0);
+    if (period === "day") return { start: start.getTime(), end: end.getTime(), label: `Bugun (${start.toLocaleDateString("uz-UZ")})`, key: "kun" };
+    if (period === "week") { start.setDate(start.getDate() - 6); return { start: start.getTime(), end: end.getTime(), label: "So'nggi 7 kun", key: "hafta" }; }
+    if (period === "month") { start.setDate(start.getDate() - 29); return { start: start.getTime(), end: end.getTime(), label: "So'nggi 30 kun", key: "oy" }; }
+    if (period === "custom" && customFrom && customTo) {
+      const s = new Date(customFrom); s.setHours(0, 0, 0, 0);
+      const e = new Date(customTo); e.setHours(23, 59, 59, 999);
+      return { start: s.getTime(), end: e.getTime(), label: `${customFrom} — ${customTo}`, key: "davr" };
+    }
+    return { start: 0, end: Date.now(), label: "Barcha vaqt", key: "barchasi" };
+  }, [period, customFrom, customTo]);
+
+  const inRange = useMemo(() => orders.filter((o) => o.createdAt >= range.start && o.createdAt <= range.end), [orders, range]);
+  const revenue = inRange.reduce((s, o) => s + (o.paymentStatus === "to'langan" ? o.total : 0), 0);
+  const debt = inRange.reduce((s, o) => s + (o.paymentStatus === "qarz" ? o.total : 0), 0);
+  const itemsQty = inRange.reduce((s, o) => s + o.items.reduce((x, it) => x + it.qty, 0), 0);
   const byMethod = { naqd: 0, karta: 0, qarz: 0 };
-  todayOrders.forEach((o) => { byMethod[o.paymentMethod] = (byMethod[o.paymentMethod] || 0) + o.total; });
+  inRange.forEach((o) => { byMethod[o.paymentMethod] = (byMethod[o.paymentMethod] || 0) + o.total; });
   const soldByProduct = {};
-  orders.forEach((o) => o.items.forEach((it) => { soldByProduct[it.name] = (soldByProduct[it.name] || 0) + it.qty; }));
-  const top = Object.entries(soldByProduct).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  inRange.forEach((o) => o.items.forEach((it) => { soldByProduct[it.name] = (soldByProduct[it.name] || 0) + it.qty; }));
+  const top = Object.entries(soldByProduct).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  // Daily breakdown for chart-like display
+  const daily = useMemo(() => {
+    const map = {};
+    inRange.forEach((o) => {
+      const d = new Date(o.createdAt).toLocaleDateString("uz-UZ");
+      if (!map[d]) map[d] = { count: 0, revenue: 0 };
+      map[d].count += 1;
+      if (o.paymentStatus === "to'langan") map[d].revenue += o.total;
+    });
+    return Object.entries(map).sort((a, b) => (a[0] > b[0] ? -1 : 1));
+  }, [inRange]);
+
+  const PERIODS = [
+    { id: "day", label: "Kun" }, { id: "week", label: "Hafta" },
+    { id: "month", label: "Oy" }, { id: "custom", label: "Davr" }, { id: "all", label: "Barchasi" },
+  ];
 
   return (
     <>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 12 }}>
-        <StatBox label="Jami tushum" value={fmt(totalRevenue)} icon={<TrendingUp size={16} />} />
-        <StatBox label="Jami qarz" value={fmt(totalDebt)} icon={<Wallet size={16} />} tone="bad" />
-        <StatBox label="Bugungi buyurtmalar" value={todayOrders.length} icon={<Clock size={16} />} />
-        <StatBox label="Bugungi tushum" value={fmt(todayRevenue)} icon={<TrendingUp size={16} />} tone="good" />
-      </div>
       <GlassCard>
-        <div style={{ fontWeight: 800, marginBottom: 8 }}>Bugun to'lov usullari bo'yicha</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+          <div style={{ fontWeight: 800 }}>Savdo hisoboti — {range.label}</div>
+          <GhostBtn primary onClick={() => downloadSalesReportPDF(range, inRange, info)}><FileDown size={13} /> PDF yuklab olish</GhostBtn>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {PERIODS.map((p) => (
+            <GhostBtn key={p.id} primary={period === p.id} onClick={() => setPeriod(p.id)}>{p.label}</GhostBtn>
+          ))}
+        </div>
+        {period === "custom" && (
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <Field type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+            <Field type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+          </div>
+        )}
+      </GlassCard>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 12 }}>
+        <StatBox label="Buyurtmalar soni" value={inRange.length} icon={<Package size={16} />} />
+        <StatBox label="Sotilgan dona" value={itemsQty} icon={<ShoppingBag size={16} />} />
+        <StatBox label="Tushum" value={fmt(revenue)} icon={<TrendingUp size={16} />} tone="good" />
+        <StatBox label="Qarz" value={fmt(debt)} icon={<Wallet size={16} />} tone="bad" />
+      </div>
+
+      <GlassCard>
+        <div style={{ fontWeight: 800, marginBottom: 8 }}>To'lov usullari bo'yicha</div>
         {Object.entries(byMethod).map(([k, v]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", borderBottom: "1px solid var(--border)" }}>
             <span style={{ textTransform: "capitalize" }}>{k}</span><span style={{ fontWeight: 700 }}>{fmt(v)}</span>
           </div>
         ))}
       </GlassCard>
+
+      <GlassCard>
+        <div style={{ fontWeight: 800, marginBottom: 8 }}>Kunlik dinamika</div>
+        {daily.length === 0 && <div style={{ color: "var(--dim)", fontSize: 12 }}>Ma'lumot yo'q</div>}
+        {daily.map(([d, v]) => (
+          <div key={d} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "5px 0", borderBottom: "1px solid var(--border)" }}>
+            <span>{d}</span>
+            <span><span style={{ color: "var(--dim)" }}>{v.count} ta · </span><span style={{ fontWeight: 700 }}>{fmt(v.revenue)}</span></span>
+          </div>
+        ))}
+      </GlassCard>
+
       <GlassCard>
         <div style={{ fontWeight: 800, marginBottom: 8 }}>Eng ko'p sotilgan</div>
+        {top.length === 0 && <div style={{ color: "var(--dim)", fontSize: 12 }}>Ma'lumot yo'q</div>}
         {top.map(([name, qty]) => (
           <div key={name} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", borderBottom: "1px solid var(--border)" }}>
             <span>{flavorFor(name).emoji} {name}</span><span style={{ fontWeight: 700 }}>{qty} dona</span>
