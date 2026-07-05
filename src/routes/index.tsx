@@ -1338,37 +1338,95 @@ function EmployeeView({ employee, shops, vehicles, setVehicles, orders, setOrder
   };
   const markPaid = (o) => setOrders(orders.map((x) => (x.id === o.id ? { ...x, paymentStatus: "to'langan" } : x)));
 
-  const STATUSES = ["tayyorlanmoqda", "yetkazilmoqda", "yakunlandi"];
+  const STATUSES = [
+    { id: "yangi", label: "Qabul qilindi", tone: "warn" },
+    { id: "tayyorlanmoqda", label: "Tayyorlanmoqda", tone: "accent" },
+    { id: "yetkazilmoqda", label: "Yo'lda", tone: "accent" },
+    { id: "yakunlandi", label: "Yetkazildi", tone: "good" },
+  ];
+  const statusMeta = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
+
+  const active = myOrders.filter((o) => o.status !== "yakunlandi");
+  const done = myOrders.filter((o) => o.status === "yakunlandi");
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: 16 }}>
       <TopBar title={`Salom, ${employee.name}`} onLogout={onLogout} />
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(61,220,151,0.12)", color: "var(--good)",
+          border: "1px solid rgba(61,220,151,0.3)", borderRadius: 999, padding: "5px 10px", fontSize: 11, fontWeight: 700, marginBottom: 14 }}>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--good)", boxShadow: "0 0 8px var(--good)",
+          animation: "pulse 1.4s infinite" }} />
+        <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
+        Real-time · yangilanishlar avtomatik
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <StatBox label="Do'kon" value={shop?.name || "—"} icon={<Store size={16} />} />
         <StatBox label="Avtomobil qoldig'i" value={vehicle ? `${vehicle.stock || 0}` : "—"} icon={<Truck size={16} />} />
         <StatBox label="Bugun yetkazilgan" value={todayDelivered.length} icon={<Check size={16} />} tone="good" />
         <StatBox label="Mening qarzim" value={fmt(employee.debt || 0)} icon={<Wallet size={16} />} tone={employee.debt > 0 ? "bad" : "good"} />
       </div>
-      <div style={{ fontWeight: 800, marginBottom: 8 }}>Menga biriktirilgan buyurtmalar</div>
-      {myOrders.length === 0 && <GlassCard>Hozircha buyurtma biriktirilmagan.</GlassCard>}
-      {myOrders.map((o) => (
-        <GlassCard key={o.id}>
-          <div style={{ fontWeight: 700 }}>{o.customerName} · {o.phone}</div>
-          <div style={{ fontSize: 12, color: "var(--dim)", marginBottom: 8 }}><MapPin size={12} style={{ display: "inline" }} /> {o.address}</div>
-          {o.items.map((it, i) => <div key={i} style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
-            <span>{flavorFor(it.name).emoji} {it.name} x{it.qty}</span><span>{fmt(it.price * it.qty)}</span>
-          </div>)}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-            <Pill tone={o.paymentStatus === "qarz" ? "bad" : "good"}>{o.paymentMethod} · {o.paymentStatus}</Pill>
-            <GhostBtn onClick={() => printReceipt(o, info)}><Printer size={12} /> Chek</GhostBtn>
-            <GhostBtn onClick={() => downloadReceiptPDF(o, info)}><FileDown size={12} /> PDF</GhostBtn>
-            {o.paymentStatus === "qarz" && <GhostBtn onClick={() => markPaid(o)}>To'landi</GhostBtn>}
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-            {STATUSES.map((s) => <GhostBtn key={s} primary={o.status === s} onClick={() => setStatus(o, s)}>{s}</GhostBtn>)}
-          </div>
-        </GlassCard>
-      ))}
+
+      <div style={{ fontWeight: 800, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+        <Radio size={14} color="var(--accent)" /> Faol buyurtmalar ({active.length})
+      </div>
+      {active.length === 0 && <GlassCard>Hozircha faol buyurtma yo'q.</GlassCard>}
+      {active.map((o) => {
+        const meta = statusMeta(o.status);
+        return (
+          <GlassCard key={o.id}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>{o.customerName} · {o.phone}</div>
+                <div style={{ fontSize: 12, color: "var(--dim)" }}><MapPin size={12} style={{ display: "inline" }} /> {o.address}</div>
+              </div>
+              <Pill tone={meta.tone}>{meta.label}</Pill>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              {o.items.map((it, i) => <div key={i} style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
+                <span>{flavorFor(it.name).emoji} {it.name} x{it.qty}</span><span>{fmt(it.price * it.qty)}</span>
+              </div>)}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+              <span style={{ fontWeight: 800 }}>{fmt(o.total)}</span>
+              <Pill tone={o.paymentStatus === "qarz" ? "bad" : "good"}>{o.paymentMethod} · {o.paymentStatus}</Pill>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              <GhostBtn onClick={() => printReceipt(o, info)}><Printer size={12} /> Chek</GhostBtn>
+              <GhostBtn onClick={() => downloadReceiptPDF(o, info)}><FileDown size={12} /> PDF</GhostBtn>
+              {o.paymentStatus === "qarz" && <GhostBtn onClick={() => markPaid(o)}>To'landi</GhostBtn>}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 10, marginBottom: 4 }}>Holatni yangilash:</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {STATUSES.map((s) => (
+                <GhostBtn key={s.id} primary={o.status === s.id} onClick={() => setStatus(o, s.id)}>{s.label}</GhostBtn>
+              ))}
+            </div>
+          </GlassCard>
+        );
+      })}
+
+      {done.length > 0 && (
+        <>
+          <div style={{ fontWeight: 800, margin: "18px 0 8px" }}>Yakunlangan ({done.length})</div>
+          {done.slice(0, 20).map((o) => (
+            <GlassCard key={o.id} style={{ opacity: 0.7 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>{o.customerName}</div>
+                  <div style={{ fontSize: 11, color: "var(--dim)" }}>{new Date(o.createdAt).toLocaleString("uz-UZ")}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 700 }}>{fmt(o.total)}</div>
+                  <Pill tone="good">Yetkazildi</Pill>
+                </div>
+              </div>
+              <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+                <GhostBtn onClick={() => downloadReceiptPDF(o, info)}><FileDown size={12} /> PDF</GhostBtn>
+              </div>
+            </GlassCard>
+          ))}
+        </>
+      )}
     </div>
   );
 }
