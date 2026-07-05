@@ -613,8 +613,9 @@ function ReceiptCard({ order, info, onClose }) {
         <div style={{ display: "flex", justifyContent: "space-between" }}><span>To'lov</span><span>{order.paymentMethod} · {order.paymentStatus}</span></div>
         <div style={{ textAlign: "center", marginTop: 8, fontSize: 10 }}>Rahmat! Yana tashrif buyuring 🍦</div>
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <GhostBtn primary onClick={() => printReceipt(order, info)}><Printer size={13} /> Chekni chop etish</GhostBtn>
+      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <GhostBtn primary onClick={() => printReceipt(order, info)}><Printer size={13} /> Chop etish</GhostBtn>
+        <GhostBtn onClick={() => downloadReceiptPDF(order, info)}><FileDown size={13} /> PDF yuklab olish</GhostBtn>
         <GhostBtn onClick={onClose}>Yopish</GhostBtn>
       </div>
     </GlassCard>
