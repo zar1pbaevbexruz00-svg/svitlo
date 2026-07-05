@@ -1092,7 +1092,7 @@ function ProductsTab({ products, setProducts, categories }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              <GhostBtn onClick={() => setForm({ ...p, price: String(p.price) })}><Edit2 size={12} /></GhostBtn>
+              <GhostBtn onClick={() => startEdit(p)}><Edit2 size={12} /></GhostBtn>
               <GhostBtn danger onClick={() => remove(p.id)}><Trash2 size={12} /></GhostBtn>
             </div>
           </div>
