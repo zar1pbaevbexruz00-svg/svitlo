@@ -3,10 +3,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Search, ShoppingBag, Plus, Minus, Trash2, MapPin, Package,
-  Users, Truck, Settings, BarChart2, X, Check, Edit2, ChevronLeft,
+  Users, Truck, Settings, BarChart2, X, Check, Edit2, ChevronLeft, ChevronRight,
   Clock, TrendingUp, Tag, Snowflake, Save, Lock, LogOut, Copy,
-  CreditCard, Banknote, AlertCircle, Store, Wallet, Star, Printer, Image as ImageIcon
+  CreditCard, Banknote, AlertCircle, Store, Wallet, Star, Printer, Image as ImageIcon,
+  FileDown, Radio
 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -108,6 +111,72 @@ function printReceipt(order, info) {
   win.document.close();
 }
 
+/* ---------------- PDF helpers ---------------- */
+function downloadReceiptPDF(order, info) {
+  const doc = new jsPDF({ unit: "mm", format: [80, 200] });
+  let y = 8;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+  doc.text(info.name || "Chek", 40, y, { align: "center" }); y += 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  if (info.tagline) { doc.text(info.tagline, 40, y, { align: "center" }); y += 4; }
+  doc.text(`${info.address || ""} · ${info.phone || ""}`, 40, y, { align: "center" }); y += 4;
+  doc.setLineDashPattern([1, 1], 0); doc.line(4, y, 76, y); y += 4;
+  doc.setFontSize(9);
+  doc.text(`Chek: ${order.id.toUpperCase()}`, 4, y); y += 4;
+  doc.text(`Sana: ${new Date(order.createdAt).toLocaleString("uz-UZ")}`, 4, y); y += 4;
+  doc.text(`Mijoz: ${order.customerName}`, 4, y); y += 4;
+  doc.text(`Tel: ${order.phone}`, 4, y); y += 4;
+  const addrLines = doc.splitTextToSize(`Manzil: ${order.address}`, 72);
+  addrLines.forEach((l) => { doc.text(l, 4, y); y += 4; });
+  doc.line(4, y, 76, y); y += 4;
+  order.items.forEach((it) => {
+    doc.text(`${it.name} x${it.qty}`, 4, y);
+    doc.text(fmt(it.price * it.qty), 76, y, { align: "right" });
+    y += 4;
+  });
+  doc.line(4, y, 76, y); y += 5;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+  doc.text("JAMI", 4, y); doc.text(fmt(order.total), 76, y, { align: "right" }); y += 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  doc.text(`To'lov: ${order.paymentMethod} · ${order.paymentStatus}`, 4, y); y += 5;
+  doc.text("Rahmat! Yana tashrif buyuring", 40, y, { align: "center" });
+  doc.save(`chek-${order.id}.pdf`);
+}
+
+function downloadSalesReportPDF(period, orders, info) {
+  const doc = new jsPDF();
+  doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.text(`${info.name || "Do'kon"} — Savdo hisoboti`, 14, 16);
+  doc.setFontSize(10); doc.setFont("helvetica", "normal");
+  doc.text(`Davr: ${period.label}   ·   Yaratilgan: ${new Date().toLocaleString("uz-UZ")}`, 14, 23);
+  const revenue = orders.reduce((s, o) => s + (o.paymentStatus === "to'langan" ? o.total : 0), 0);
+  const debt = orders.reduce((s, o) => s + (o.paymentStatus === "qarz" ? o.total : 0), 0);
+  const qty = orders.reduce((s, o) => s + o.items.reduce((x, it) => x + it.qty, 0), 0);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+  doc.text(`Buyurtmalar: ${orders.length}   Sotilgan dona: ${qty}   Tushum: ${fmt(revenue)}   Qarz: ${fmt(debt)}`, 14, 32);
+  autoTable(doc, {
+    startY: 38,
+    head: [["Sana", "Mijoz", "Tel", "Mahsulotlar", "Summa", "To'lov"]],
+    body: orders.map((o) => [
+      new Date(o.createdAt).toLocaleString("uz-UZ"),
+      o.customerName, o.phone,
+      o.items.map((i) => `${i.name} x${i.qty}`).join(", "),
+      fmt(o.total),
+      `${o.paymentMethod} · ${o.paymentStatus}`,
+    ]),
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [124, 108, 255] },
+  });
+  doc.save(`hisobot-${period.key}-${Date.now()}.pdf`);
+}
+
+/* ---------------- image helpers ---------------- */
+function getProductImages(p) {
+  if (Array.isArray(p.images) && p.images.length) return p.images;
+  if (p.image) return [p.image];
+  return [];
+}
+
 /* ---------------- root ---------------- */
 function App() {
   const [mode, setMode] = useState("client");
@@ -136,6 +205,22 @@ function App() {
     setDebtPayments(safeGet("pi_debt_payments", []));
     setAdminAuth(safeGet("pi_admin_auth", DEFAULT_ADMIN_AUTH));
     setLoaded(true);
+  }, []);
+
+  // Real-time cross-tab sync: when another tab (admin/employee/client) updates
+  // localStorage, mirror it here so status changes reflect live.
+  useEffect(() => {
+    const map = {
+      pi_info: setInfo, pi_categories: setCategories, pi_products: setProducts,
+      pi_shops: setShops, pi_employees: setEmployees, pi_vehicles: setVehicles,
+      pi_orders: setOrders, pi_debt_payments: setDebtPayments, pi_admin_auth: setAdminAuth,
+    };
+    const onStorage = (e) => {
+      if (!e.key || !(e.key in map) || e.newValue == null) return;
+      try { map[e.key](JSON.parse(e.newValue)); } catch { /* ignore */ }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const persist = {
@@ -263,12 +348,41 @@ function Select({ children, ...props }) {
 
 function ProductImage({ product, height = 88, fontSize = 40 }) {
   const f = flavorFor(product.name);
-  if (product.image) {
-    return <div style={{ height, background: `linear-gradient(135deg, ${f.color}22, #000)`, overflow: "hidden" }}>
-      <img src={product.image} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+  const imgs = getProductImages(product);
+  if (imgs.length) {
+    return <div style={{ height, background: `linear-gradient(135deg, ${f.color}22, #000)`, overflow: "hidden", position: "relative" }}>
+      <img src={imgs[0]} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      {imgs.length > 1 && <span style={{ position: "absolute", right: 6, top: 6, background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 999, padding: "2px 7px" }}>+{imgs.length - 1}</span>}
     </div>;
   }
   return <div style={{ height, background: `linear-gradient(135deg, ${f.color}55, ${f.color}10)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize }}>{f.emoji}</div>;
+}
+
+function ImageGallery({ images, name, color, emoji }) {
+  const [idx, setIdx] = useState(0);
+  if (!images.length) {
+    return <div style={{ height: "100%", background: `linear-gradient(160deg, ${color}77, ${color}10)`, display: "flex", alignItems: "flex-end", padding: 20 }}>
+      <div style={{ fontSize: 110, position: "absolute", right: 10, top: 30, opacity: 0.9 }}>{emoji}</div>
+    </div>;
+  }
+  const prev = () => setIdx((i) => (i - 1 + images.length) % images.length);
+  const next = () => setIdx((i) => (i + 1) % images.length);
+  return (
+    <div style={{ height: "100%", position: "relative", background: "#000" }}>
+      <img src={images[idx]} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      {images.length > 1 && (
+        <>
+          <button onClick={prev} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.55)", border: "none", color: "#fff", borderRadius: 999, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronLeft size={18} /></button>
+          <button onClick={next} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.55)", border: "none", color: "#fff", borderRadius: 999, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronRight size={18} /></button>
+          <div style={{ position: "absolute", bottom: 12, left: 0, right: 0, display: "flex", gap: 5, justifyContent: "center" }}>
+            {images.map((_, i) => (
+              <span key={i} onClick={() => setIdx(i)} style={{ width: i === idx ? 20 : 6, height: 6, borderRadius: 999, background: i === idx ? "#fff" : "rgba(255,255,255,0.5)", cursor: "pointer", transition: "width .2s" }} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 /* ---------------- LOGIN MODAL ---------------- */
@@ -499,8 +613,9 @@ function ReceiptCard({ order, info, onClose }) {
         <div style={{ display: "flex", justifyContent: "space-between" }}><span>To'lov</span><span>{order.paymentMethod} · {order.paymentStatus}</span></div>
         <div style={{ textAlign: "center", marginTop: 8, fontSize: 10 }}>Rahmat! Yana tashrif buyuring 🍦</div>
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <GhostBtn primary onClick={() => printReceipt(order, info)}><Printer size={13} /> Chekni chop etish</GhostBtn>
+      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <GhostBtn primary onClick={() => printReceipt(order, info)}><Printer size={13} /> Chop etish</GhostBtn>
+        <GhostBtn onClick={() => downloadReceiptPDF(order, info)}><FileDown size={13} /> PDF yuklab olish</GhostBtn>
         <GhostBtn onClick={onClose}>Yopish</GhostBtn>
       </div>
     </GlassCard>
@@ -526,18 +641,13 @@ function CatChip({ label, active, onClick }) {
 
 function ProductDetail({ product, onBack, qty, onAdd, onSub }) {
   const f = flavorFor(product.name);
+  const imgs = getProductImages(product);
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh" }}>
-      <div style={{ height: 280, position: "relative", overflow: "hidden" }}>
-        {product.image ? (
-          <img src={product.image} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          <div style={{ height: "100%", background: `linear-gradient(160deg, ${f.color}77, ${f.color}10)`, display: "flex", alignItems: "flex-end", padding: 20 }}>
-            <div style={{ fontSize: 110, position: "absolute", right: 10, top: 30, opacity: 0.9 }}>{f.emoji}</div>
-          </div>
-        )}
+      <div style={{ height: 320, position: "relative", overflow: "hidden" }}>
+        <ImageGallery images={imgs} name={product.name} color={f.color} emoji={f.emoji} />
         <button onClick={onBack} style={{ position: "absolute", top: 20, left: 20, background: "rgba(0,0,0,0.55)", border: "none", color: "#fff",
-            borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronLeft size={20} /></button>
+            borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5 }}><ChevronLeft size={20} /></button>
       </div>
       <div style={{ padding: 20 }}>
         <div style={{ fontSize: 24, fontWeight: 800 }}>{product.name}</div>
@@ -675,6 +785,7 @@ function OrdersTab({ orders, setOrders, shops, employees, vehicles, setVehicles,
             <span style={{ fontWeight: 800 }}>{fmt(o.total)}</span>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               <GhostBtn onClick={() => printReceipt(o, info)}><Printer size={12} /> Chek</GhostBtn>
+              <GhostBtn onClick={() => downloadReceiptPDF(o, info)}><FileDown size={12} /> PDF</GhostBtn>
               {o.paymentStatus === "qarz" && <GhostBtn onClick={() => setField(o.id, "paymentStatus", "to'langan")}>Qarzni yopish</GhostBtn>}
               <GhostBtn onClick={() => copyOrder(o, shops, employees)}><Copy size={12} /> Nusxa</GhostBtn>
               <GhostBtn danger onClick={() => remove(o.id)}><Trash2 size={12} /></GhostBtn>
@@ -878,26 +989,47 @@ function ShopsTab({ shops, setShops }) {
   );
 }
 
+const MAX_IMAGES = 15;
 function ProductsTab({ products, setProducts, categories }) {
   const [form, setForm] = useState(null);
   const fileRef = useRef(null);
-  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", desc: "", popular: false, image: "" });
+  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", desc: "", popular: false, images: [] });
+  const startEdit = (p) => setForm({ ...p, price: String(p.price), images: getProductImages(p) });
   const save = () => {
     if (!form.name.trim() || !form.price) return;
-    if (form.id) setProducts(products.map((p) => (p.id === form.id ? { ...form, price: Number(form.price) } : p)));
-    else setProducts([...products, { ...form, id: uid(), price: Number(form.price) }]);
+    const clean = { ...form, price: Number(form.price), images: form.images || [], image: "" };
+    if (form.id) setProducts(products.map((p) => (p.id === form.id ? clean : p)));
+    else setProducts([...products, { ...clean, id: uid() }]);
     setForm(null);
   };
   const remove = (id) => setProducts(products.filter((p) => p.id !== id));
 
-  const onFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { alert("Rasm 2MB dan katta bo'lmasin"); return; }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, image: reader.result }));
-    reader.readAsDataURL(file);
+  const onFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const room = MAX_IMAGES - (form.images?.length || 0);
+    if (room <= 0) { alert(`Maksimum ${MAX_IMAGES} ta rasm`); return; }
+    const slice = files.slice(0, room);
+    Promise.all(slice.map((file) => new Promise((res) => {
+      if (file.size > 2 * 1024 * 1024) { res(null); return; }
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = () => res(null);
+      r.readAsDataURL(file);
+    }))).then((results) => {
+      const ok = results.filter(Boolean);
+      setForm((f) => ({ ...f, images: [...(f.images || []), ...ok] }));
+      if (results.some((r) => !r)) alert("Ba'zi rasmlar 2MB dan katta bo'lgani uchun tashlab yuborildi");
+    });
+    e.target.value = "";
   };
+  const removeImg = (i) => setForm((f) => ({ ...f, images: f.images.filter((_, idx) => idx !== i) }));
+  const moveImg = (i, dir) => setForm((f) => {
+    const arr = [...f.images]; const j = i + dir;
+    if (j < 0 || j >= arr.length) return f;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    return { ...f, images: arr };
+  });
 
   return (
     <>
@@ -906,21 +1038,31 @@ function ProductsTab({ products, setProducts, categories }) {
       </div>
       {form && (
         <GlassCard>
-          <div style={{ display: "flex", gap: 12, marginBottom: 10, alignItems: "flex-start" }}>
-            <div style={{ width: 110, height: 110, borderRadius: 14, border: "1px dashed var(--border)", overflow: "hidden",
-                display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.03)", flexShrink: 0 }}>
-              {form.image ? (
-                <img src={form.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                <ImageIcon size={28} color="var(--dim)" />
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>Rasmlar ({form.images?.length || 0}/{MAX_IMAGES})</div>
+              <div>
+                <input ref={fileRef} type="file" accept="image/*" multiple onChange={onFiles} style={{ display: "none" }} />
+                <GhostBtn onClick={() => fileRef.current?.click()} primary><ImageIcon size={12} /> Rasm(lar) yuklash</GhostBtn>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(90px,1fr))", gap: 8 }}>
+              {(form.images || []).map((src, i) => (
+                <div key={i} style={{ position: "relative", height: 90, borderRadius: 10, overflow: "hidden", border: "1px solid var(--border)" }}>
+                  <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  {i === 0 && <span style={{ position: "absolute", top: 4, left: 4, background: "var(--accent)", color: "#fff", fontSize: 9, fontWeight: 700, borderRadius: 4, padding: "2px 5px" }}>ASOSIY</span>}
+                  <button onClick={() => removeImg(i)} style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", borderRadius: 6, width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={11} /></button>
+                  <div style={{ position: "absolute", bottom: 4, left: 4, right: 4, display: "flex", gap: 3, justifyContent: "space-between" }}>
+                    <button onClick={() => moveImg(i, -1)} disabled={i === 0} style={{ flex: 1, background: "rgba(0,0,0,0.6)", border: "none", color: i === 0 ? "#555" : "#fff", borderRadius: 4, fontSize: 10, padding: "2px 0" }}>◀</button>
+                    <button onClick={() => moveImg(i, 1)} disabled={i === form.images.length - 1} style={{ flex: 1, background: "rgba(0,0,0,0.6)", border: "none", color: i === form.images.length - 1 ? "#555" : "#fff", borderRadius: 4, fontSize: 10, padding: "2px 0" }}>▶</button>
+                  </div>
+                </div>
+              ))}
+              {(!form.images || form.images.length === 0) && (
+                <div style={{ height: 90, borderRadius: 10, border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--dim)" }}><ImageIcon size={24} /></div>
               )}
             </div>
-            <div style={{ flex: 1 }}>
-              <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ display: "none" }} />
-              <GhostBtn onClick={() => fileRef.current?.click()}><ImageIcon size={12} /> Rasm yuklash</GhostBtn>
-              {form.image && <GhostBtn danger style={{ marginLeft: 6 }} onClick={() => setForm({ ...form, image: "" })}><Trash2 size={12} /></GhostBtn>}
-              <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 6 }}>PNG/JPG, max 2MB. Bo'sh bo'lsa emoji ishlatiladi.</div>
-            </div>
+            <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 6 }}>10-15 tagacha rasm yuklash mumkin. Har biri max 2MB. Birinchi rasm asosiy hisoblanadi.</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
             <Field placeholder="Nomi" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -952,7 +1094,7 @@ function ProductsTab({ products, setProducts, categories }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              <GhostBtn onClick={() => setForm({ ...p, price: String(p.price) })}><Edit2 size={12} /></GhostBtn>
+              <GhostBtn onClick={() => startEdit(p)}><Edit2 size={12} /></GhostBtn>
               <GhostBtn danger onClick={() => remove(p.id)}><Trash2 size={12} /></GhostBtn>
             </div>
           </div>
@@ -1031,36 +1173,103 @@ function DebtorsTab({ orders, setOrders, debtPayments, setDebtPayments }) {
   );
 }
 
-function ReportTab({ orders }) {
-  const totalRevenue = orders.reduce((s, o) => s + (o.paymentStatus === "to'langan" ? o.total : 0), 0);
-  const totalDebt = orders.filter((o) => o.paymentStatus === "qarz").reduce((s, o) => s + o.total, 0);
-  const today = todayStr();
-  const todayOrders = orders.filter((o) => new Date(o.createdAt).toDateString() === today);
-  const todayRevenue = todayOrders.reduce((s, o) => s + (o.paymentStatus === "to'langan" ? o.total : 0), 0);
+function ReportTab({ orders, info }) {
+  const [period, setPeriod] = useState("day");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  const range = useMemo(() => {
+    const now = new Date();
+    const end = new Date(now); end.setHours(23, 59, 59, 999);
+    const start = new Date(now); start.setHours(0, 0, 0, 0);
+    if (period === "day") return { start: start.getTime(), end: end.getTime(), label: `Bugun (${start.toLocaleDateString("uz-UZ")})`, key: "kun" };
+    if (period === "week") { start.setDate(start.getDate() - 6); return { start: start.getTime(), end: end.getTime(), label: "So'nggi 7 kun", key: "hafta" }; }
+    if (period === "month") { start.setDate(start.getDate() - 29); return { start: start.getTime(), end: end.getTime(), label: "So'nggi 30 kun", key: "oy" }; }
+    if (period === "custom" && customFrom && customTo) {
+      const s = new Date(customFrom); s.setHours(0, 0, 0, 0);
+      const e = new Date(customTo); e.setHours(23, 59, 59, 999);
+      return { start: s.getTime(), end: e.getTime(), label: `${customFrom} — ${customTo}`, key: "davr" };
+    }
+    return { start: 0, end: Date.now(), label: "Barcha vaqt", key: "barchasi" };
+  }, [period, customFrom, customTo]);
+
+  const inRange = useMemo(() => orders.filter((o) => o.createdAt >= range.start && o.createdAt <= range.end), [orders, range]);
+  const revenue = inRange.reduce((s, o) => s + (o.paymentStatus === "to'langan" ? o.total : 0), 0);
+  const debt = inRange.reduce((s, o) => s + (o.paymentStatus === "qarz" ? o.total : 0), 0);
+  const itemsQty = inRange.reduce((s, o) => s + o.items.reduce((x, it) => x + it.qty, 0), 0);
   const byMethod = { naqd: 0, karta: 0, qarz: 0 };
-  todayOrders.forEach((o) => { byMethod[o.paymentMethod] = (byMethod[o.paymentMethod] || 0) + o.total; });
+  inRange.forEach((o) => { byMethod[o.paymentMethod] = (byMethod[o.paymentMethod] || 0) + o.total; });
   const soldByProduct = {};
-  orders.forEach((o) => o.items.forEach((it) => { soldByProduct[it.name] = (soldByProduct[it.name] || 0) + it.qty; }));
-  const top = Object.entries(soldByProduct).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  inRange.forEach((o) => o.items.forEach((it) => { soldByProduct[it.name] = (soldByProduct[it.name] || 0) + it.qty; }));
+  const top = Object.entries(soldByProduct).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  // Daily breakdown for chart-like display
+  const daily = useMemo(() => {
+    const map = {};
+    inRange.forEach((o) => {
+      const d = new Date(o.createdAt).toLocaleDateString("uz-UZ");
+      if (!map[d]) map[d] = { count: 0, revenue: 0 };
+      map[d].count += 1;
+      if (o.paymentStatus === "to'langan") map[d].revenue += o.total;
+    });
+    return Object.entries(map).sort((a, b) => (a[0] > b[0] ? -1 : 1));
+  }, [inRange]);
+
+  const PERIODS = [
+    { id: "day", label: "Kun" }, { id: "week", label: "Hafta" },
+    { id: "month", label: "Oy" }, { id: "custom", label: "Davr" }, { id: "all", label: "Barchasi" },
+  ];
 
   return (
     <>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 12 }}>
-        <StatBox label="Jami tushum" value={fmt(totalRevenue)} icon={<TrendingUp size={16} />} />
-        <StatBox label="Jami qarz" value={fmt(totalDebt)} icon={<Wallet size={16} />} tone="bad" />
-        <StatBox label="Bugungi buyurtmalar" value={todayOrders.length} icon={<Clock size={16} />} />
-        <StatBox label="Bugungi tushum" value={fmt(todayRevenue)} icon={<TrendingUp size={16} />} tone="good" />
-      </div>
       <GlassCard>
-        <div style={{ fontWeight: 800, marginBottom: 8 }}>Bugun to'lov usullari bo'yicha</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+          <div style={{ fontWeight: 800 }}>Savdo hisoboti — {range.label}</div>
+          <GhostBtn primary onClick={() => downloadSalesReportPDF(range, inRange, info)}><FileDown size={13} /> PDF yuklab olish</GhostBtn>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {PERIODS.map((p) => (
+            <GhostBtn key={p.id} primary={period === p.id} onClick={() => setPeriod(p.id)}>{p.label}</GhostBtn>
+          ))}
+        </div>
+        {period === "custom" && (
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <Field type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+            <Field type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+          </div>
+        )}
+      </GlassCard>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 12 }}>
+        <StatBox label="Buyurtmalar soni" value={inRange.length} icon={<Package size={16} />} />
+        <StatBox label="Sotilgan dona" value={itemsQty} icon={<ShoppingBag size={16} />} />
+        <StatBox label="Tushum" value={fmt(revenue)} icon={<TrendingUp size={16} />} tone="good" />
+        <StatBox label="Qarz" value={fmt(debt)} icon={<Wallet size={16} />} tone="bad" />
+      </div>
+
+      <GlassCard>
+        <div style={{ fontWeight: 800, marginBottom: 8 }}>To'lov usullari bo'yicha</div>
         {Object.entries(byMethod).map(([k, v]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", borderBottom: "1px solid var(--border)" }}>
             <span style={{ textTransform: "capitalize" }}>{k}</span><span style={{ fontWeight: 700 }}>{fmt(v)}</span>
           </div>
         ))}
       </GlassCard>
+
+      <GlassCard>
+        <div style={{ fontWeight: 800, marginBottom: 8 }}>Kunlik dinamika</div>
+        {daily.length === 0 && <div style={{ color: "var(--dim)", fontSize: 12 }}>Ma'lumot yo'q</div>}
+        {daily.map(([d, v]) => (
+          <div key={d} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "5px 0", borderBottom: "1px solid var(--border)" }}>
+            <span>{d}</span>
+            <span><span style={{ color: "var(--dim)" }}>{v.count} ta · </span><span style={{ fontWeight: 700 }}>{fmt(v.revenue)}</span></span>
+          </div>
+        ))}
+      </GlassCard>
+
       <GlassCard>
         <div style={{ fontWeight: 800, marginBottom: 8 }}>Eng ko'p sotilgan</div>
+        {top.length === 0 && <div style={{ color: "var(--dim)", fontSize: 12 }}>Ma'lumot yo'q</div>}
         {top.map(([name, qty]) => (
           <div key={name} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", borderBottom: "1px solid var(--border)" }}>
             <span>{flavorFor(name).emoji} {name}</span><span style={{ fontWeight: 700 }}>{qty} dona</span>
@@ -1129,36 +1338,95 @@ function EmployeeView({ employee, shops, vehicles, setVehicles, orders, setOrder
   };
   const markPaid = (o) => setOrders(orders.map((x) => (x.id === o.id ? { ...x, paymentStatus: "to'langan" } : x)));
 
-  const STATUSES = ["tayyorlanmoqda", "yetkazilmoqda", "yakunlandi"];
+  const STATUSES = [
+    { id: "yangi", label: "Qabul qilindi", tone: "warn" },
+    { id: "tayyorlanmoqda", label: "Tayyorlanmoqda", tone: "accent" },
+    { id: "yetkazilmoqda", label: "Yo'lda", tone: "accent" },
+    { id: "yakunlandi", label: "Yetkazildi", tone: "good" },
+  ];
+  const statusMeta = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
+
+  const active = myOrders.filter((o) => o.status !== "yakunlandi");
+  const done = myOrders.filter((o) => o.status === "yakunlandi");
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: 16 }}>
       <TopBar title={`Salom, ${employee.name}`} onLogout={onLogout} />
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(61,220,151,0.12)", color: "var(--good)",
+          border: "1px solid rgba(61,220,151,0.3)", borderRadius: 999, padding: "5px 10px", fontSize: 11, fontWeight: 700, marginBottom: 14 }}>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--good)", boxShadow: "0 0 8px var(--good)",
+          animation: "pulse 1.4s infinite" }} />
+        <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
+        Real-time · yangilanishlar avtomatik
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <StatBox label="Do'kon" value={shop?.name || "—"} icon={<Store size={16} />} />
         <StatBox label="Avtomobil qoldig'i" value={vehicle ? `${vehicle.stock || 0}` : "—"} icon={<Truck size={16} />} />
         <StatBox label="Bugun yetkazilgan" value={todayDelivered.length} icon={<Check size={16} />} tone="good" />
         <StatBox label="Mening qarzim" value={fmt(employee.debt || 0)} icon={<Wallet size={16} />} tone={employee.debt > 0 ? "bad" : "good"} />
       </div>
-      <div style={{ fontWeight: 800, marginBottom: 8 }}>Menga biriktirilgan buyurtmalar</div>
-      {myOrders.length === 0 && <GlassCard>Hozircha buyurtma biriktirilmagan.</GlassCard>}
-      {myOrders.map((o) => (
-        <GlassCard key={o.id}>
-          <div style={{ fontWeight: 700 }}>{o.customerName} · {o.phone}</div>
-          <div style={{ fontSize: 12, color: "var(--dim)", marginBottom: 8 }}><MapPin size={12} style={{ display: "inline" }} /> {o.address}</div>
-          {o.items.map((it, i) => <div key={i} style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
-            <span>{flavorFor(it.name).emoji} {it.name} x{it.qty}</span><span>{fmt(it.price * it.qty)}</span>
-          </div>)}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-            <Pill tone={o.paymentStatus === "qarz" ? "bad" : "good"}>{o.paymentMethod} · {o.paymentStatus}</Pill>
-            <GhostBtn onClick={() => printReceipt(o, info)}><Printer size={12} /> Chek</GhostBtn>
-            {o.paymentStatus === "qarz" && <GhostBtn onClick={() => markPaid(o)}>To'landi</GhostBtn>}
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-            {STATUSES.map((s) => <GhostBtn key={s} primary={o.status === s} onClick={() => setStatus(o, s)}>{s}</GhostBtn>)}
-          </div>
-        </GlassCard>
-      ))}
+
+      <div style={{ fontWeight: 800, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+        <Radio size={14} color="var(--accent)" /> Faol buyurtmalar ({active.length})
+      </div>
+      {active.length === 0 && <GlassCard>Hozircha faol buyurtma yo'q.</GlassCard>}
+      {active.map((o) => {
+        const meta = statusMeta(o.status);
+        return (
+          <GlassCard key={o.id}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>{o.customerName} · {o.phone}</div>
+                <div style={{ fontSize: 12, color: "var(--dim)" }}><MapPin size={12} style={{ display: "inline" }} /> {o.address}</div>
+              </div>
+              <Pill tone={meta.tone}>{meta.label}</Pill>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              {o.items.map((it, i) => <div key={i} style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
+                <span>{flavorFor(it.name).emoji} {it.name} x{it.qty}</span><span>{fmt(it.price * it.qty)}</span>
+              </div>)}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+              <span style={{ fontWeight: 800 }}>{fmt(o.total)}</span>
+              <Pill tone={o.paymentStatus === "qarz" ? "bad" : "good"}>{o.paymentMethod} · {o.paymentStatus}</Pill>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              <GhostBtn onClick={() => printReceipt(o, info)}><Printer size={12} /> Chek</GhostBtn>
+              <GhostBtn onClick={() => downloadReceiptPDF(o, info)}><FileDown size={12} /> PDF</GhostBtn>
+              {o.paymentStatus === "qarz" && <GhostBtn onClick={() => markPaid(o)}>To'landi</GhostBtn>}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 10, marginBottom: 4 }}>Holatni yangilash:</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {STATUSES.map((s) => (
+                <GhostBtn key={s.id} primary={o.status === s.id} onClick={() => setStatus(o, s.id)}>{s.label}</GhostBtn>
+              ))}
+            </div>
+          </GlassCard>
+        );
+      })}
+
+      {done.length > 0 && (
+        <>
+          <div style={{ fontWeight: 800, margin: "18px 0 8px" }}>Yakunlangan ({done.length})</div>
+          {done.slice(0, 20).map((o) => (
+            <GlassCard key={o.id} style={{ opacity: 0.7 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>{o.customerName}</div>
+                  <div style={{ fontSize: 11, color: "var(--dim)" }}>{new Date(o.createdAt).toLocaleString("uz-UZ")}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 700 }}>{fmt(o.total)}</div>
+                  <Pill tone="good">Yetkazildi</Pill>
+                </div>
+              </div>
+              <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+                <GhostBtn onClick={() => downloadReceiptPDF(o, info)}><FileDown size={12} /> PDF</GhostBtn>
+              </div>
+            </GlassCard>
+          ))}
+        </>
+      )}
     </div>
   );
 }
