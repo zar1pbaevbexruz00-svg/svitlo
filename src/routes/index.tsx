@@ -1294,6 +1294,7 @@ function EmployeeView({ employee, shops, vehicles, setVehicles, orders, setOrder
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
             <Pill tone={o.paymentStatus === "qarz" ? "bad" : "good"}>{o.paymentMethod} · {o.paymentStatus}</Pill>
             <GhostBtn onClick={() => printReceipt(o, info)}><Printer size={12} /> Chek</GhostBtn>
+            <GhostBtn onClick={() => downloadReceiptPDF(o, info)}><FileDown size={12} /> PDF</GhostBtn>
             {o.paymentStatus === "qarz" && <GhostBtn onClick={() => markPaid(o)}>To'landi</GhostBtn>}
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
