@@ -575,9 +575,9 @@ function ClientView({ info, categories, products, orders, setOrders, onSearchSub
               <button onClick={() => setCheckoutOpen(false)} style={{ background: "none", border: "none", color: "var(--text)" }}><X size={22} /></button>
             </div>
             {cartItems.map((c) => (
-              <div key={c.product.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-                <span>{flavorFor(c.product.name).emoji} {c.product.name} x{c.qty}</span>
-                <span style={{ fontWeight: 700 }}>{fmt(c.product.price * c.qty)}</span>
+              <div key={c.key} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
+                <span>{flavorFor(c.product.name).emoji} {c.label} x{c.qty}</span>
+                <span style={{ fontWeight: 700 }}>{fmt(c.unitPrice * c.qty)}</span>
               </div>
             ))}
             <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", fontWeight: 800 }}>
