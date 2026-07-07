@@ -1041,14 +1041,15 @@ const MAX_IMAGES = 15;
 function ProductsTab({ products, setProducts, categories }) {
   const [form, setForm] = useState(null);
   const fileRef = useRef(null);
-  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", wholesalePrice: "", stock: "", desc: "", popular: false, images: [] });
-  const startEdit = (p) => setForm({ ...p, price: String(p.price), wholesalePrice: String(p.wholesalePrice ?? ""), stock: String(p.stock ?? ""), images: getProductImages(p) });
+  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", wholesalePrice: "", boxPrice: "", stock: "", desc: "", popular: false, images: [] });
+  const startEdit = (p) => setForm({ ...p, price: String(p.price), wholesalePrice: String(p.wholesalePrice ?? ""), boxPrice: String(p.boxPrice ?? ""), stock: String(p.stock ?? ""), images: getProductImages(p) });
   const save = () => {
     if (!form.name.trim() || !form.price) return;
     const clean = {
       ...form,
       price: Number(form.price),
       wholesalePrice: form.wholesalePrice === "" ? 0 : Number(form.wholesalePrice),
+      boxPrice: form.boxPrice === "" ? 0 : Number(form.boxPrice),
       stock: form.stock === "" ? 0 : Number(form.stock),
       images: form.images || [],
       image: "",
