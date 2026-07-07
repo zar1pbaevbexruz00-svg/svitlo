@@ -1126,8 +1126,9 @@ function ProductsTab({ products, setProducts, categories }) {
             <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
-            <Field placeholder="Chakana narxi (so'm)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
-            <Field placeholder="Optom (ulgurji) narxi (so'm)" type="number" value={form.wholesalePrice} onChange={(e) => setForm({ ...form, wholesalePrice: e.target.value })} />
+            <Field placeholder="Chakana narxi — dona (so'm)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+            <Field placeholder="Optom (ulgurji) narxi — dona (so'm)" type="number" value={form.wholesalePrice} onChange={(e) => setForm({ ...form, wholesalePrice: e.target.value })} />
+            <Field placeholder="Korobka narxi (so'm)" type="number" value={form.boxPrice} onChange={(e) => setForm({ ...form, boxPrice: e.target.value })} />
             <Field placeholder="Dona (qoldiq soni)" type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
             <Field placeholder="Tavsif" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} />
           </div>
