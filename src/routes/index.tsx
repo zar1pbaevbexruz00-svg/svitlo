@@ -1077,14 +1077,16 @@ function ProductsTab({ products, setProducts, categories }) {
                 <div style={{ height: 90, borderRadius: 10, border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--dim)" }}><ImageIcon size={24} /></div>
               )}
             </div>
-            <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 6 }}>10-15 tagacha rasm yuklash mumkin. Har biri max 2MB. Birinchi rasm asosiy hisoblanadi.</div>
+            <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 6 }}>10-15 tagacha rasm yuklash mumkin. Har biri max 2GB — maksimal sifat va hajm cheklanmagan. Birinchi rasm asosiy hisoblanadi.</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
             <Field placeholder="Nomi" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
-            <Field placeholder="Narxi" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+            <Field placeholder="Chakana narxi (so'm)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+            <Field placeholder="Optom (ulgurji) narxi (so'm)" type="number" value={form.wholesalePrice} onChange={(e) => setForm({ ...form, wholesalePrice: e.target.value })} />
+            <Field placeholder="Dona (qoldiq soni)" type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
             <Field placeholder="Tavsif" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} />
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 8 }}>
@@ -1105,9 +1107,15 @@ function ProductsTab({ products, setProducts, categories }) {
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 700 }}>{p.name} {p.popular && <Star size={11} color="var(--warn)" style={{ display: "inline" }} />}</div>
-                <div style={{ fontSize: 12, color: "var(--dim)" }}>{categories.find((c) => c.id === p.categoryId)?.name || "—"} · {fmt(p.price)}</div>
+                <div style={{ fontSize: 12, color: "var(--dim)" }}>{categories.find((c) => c.id === p.categoryId)?.name || "—"}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4, fontSize: 11 }}>
+                  <span style={{ background: "rgba(56,189,248,0.15)", color: "var(--accent)", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Chakana: {fmt(p.price)}</span>
+                  {p.wholesalePrice > 0 && <span style={{ background: "rgba(168,85,247,0.15)", color: "#c084fc", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Optom: {fmt(p.wholesalePrice)}</span>}
+                  <span style={{ background: (p.stock ?? 0) > 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", color: (p.stock ?? 0) > 0 ? "#4ade80" : "#f87171", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Qoldiq: {p.stock ?? 0} dona</span>
+                </div>
               </div>
             </div>
+
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
               <GhostBtn onClick={() => startEdit(p)}><Edit2 size={12} /></GhostBtn>
               <GhostBtn danger onClick={() => remove(p.id)}><Trash2 size={12} /></GhostBtn>
