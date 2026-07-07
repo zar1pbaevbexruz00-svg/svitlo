@@ -44,12 +44,12 @@ const DEFAULT_CATEGORIES = [
   { id: "c3", name: "Yong'oqli" }, { id: "c4", name: "Maxsus" },
 ];
 const DEFAULT_PRODUCTS = [
-  { id: "p1", name: "Qulupnayli", categoryId: "c1", price: 15000, wholesalePrice: 11000, stock: 100, desc: "Yangi qulupnay bilan tayyorlangan, yengil va tetiklantiruvchi ta'm.", popular: true, image: "" },
-  { id: "p2", name: "Limonli sorbet", categoryId: "c1", price: 14000, wholesalePrice: 10000, stock: 80, desc: "Muzdek limon sorbeti, yozgi kunlar uchun ideal.", popular: false, image: "" },
-  { id: "p3", name: "Shokoladli", categoryId: "c2", price: 16000, wholesalePrice: 12000, stock: 120, desc: "Belgiya qora shokoladi qo'shilgan klassik ta'm.", popular: true, image: "" },
-  { id: "p4", name: "Fistashkali", categoryId: "c3", price: 18000, wholesalePrice: 13500, stock: 60, desc: "Haqiqiy fistashka yong'og'idan tayyorlangan premium ta'm.", popular: true, image: "" },
-  { id: "p5", name: "Bananli split", categoryId: "c4", price: 22000, wholesalePrice: 17000, stock: 50, desc: "Banan, krem va qovurilgan yong'oq bilan boy tarkib.", popular: false, image: "" },
-  { id: "p6", name: "Ko'k moviy", categoryId: "c4", price: 17000, wholesalePrice: 12500, stock: 70, desc: "Ko'k mevalar aralashmasidan tayyorlangan maxsus retsept.", popular: false, image: "" },
+  { id: "p1", name: "Qulupnayli", categoryId: "c1", price: 15000, wholesalePrice: 11000, boxPrice: 160000, stock: 100, desc: "Yangi qulupnay bilan tayyorlangan, yengil va tetiklantiruvchi ta'm.", popular: true, image: "" },
+  { id: "p2", name: "Limonli sorbet", categoryId: "c1", price: 14000, wholesalePrice: 10000, boxPrice: 150000, stock: 80, desc: "Muzdek limon sorbeti, yozgi kunlar uchun ideal.", popular: false, image: "" },
+  { id: "p3", name: "Shokoladli", categoryId: "c2", price: 16000, wholesalePrice: 12000, boxPrice: 170000, stock: 120, desc: "Belgiya qora shokoladi qo'shilgan klassik ta'm.", popular: true, image: "" },
+  { id: "p4", name: "Fistashkali", categoryId: "c3", price: 18000, wholesalePrice: 13500, boxPrice: 195000, stock: 60, desc: "Haqiqiy fistashka yong'og'idan tayyorlangan premium ta'm.", popular: true, image: "" },
+  { id: "p5", name: "Bananli split", categoryId: "c4", price: 22000, wholesalePrice: 17000, boxPrice: 240000, stock: 50, desc: "Banan, krem va qovurilgan yong'oq bilan boy tarkib.", popular: false, image: "" },
+  { id: "p6", name: "Ko'k moviy", categoryId: "c4", price: 17000, wholesalePrice: 12500, boxPrice: 180000, stock: 70, desc: "Ko'k mevalar aralashmasidan tayyorlangan maxsus retsept.", popular: false, image: "" },
 ];
 const DEFAULT_ADMIN_AUTH = { username: "Svitlogorie.Urgench", password: "Kk19931997" };
 
@@ -443,18 +443,29 @@ function ClientView({ info, categories, products, orders, setOrders, onSearchSub
   );
   const popular = products.filter((p) => p.popular);
 
+  const BOX_SUFFIX = "__box";
   const cartItems = Object.entries(cart).filter(([, q]) => q > 0)
-    .map(([id, qty]) => ({ product: products.find((p) => p.id === id), qty })).filter((c) => c.product);
-  const cartTotal = cartItems.reduce((s, c) => s + c.product.price * c.qty, 0);
+    .map(([key, qty]) => {
+      const isBox = key.endsWith(BOX_SUFFIX);
+      const pid = isBox ? key.slice(0, -BOX_SUFFIX.length) : key;
+      const product = products.find((p) => p.id === pid);
+      if (!product) return null;
+      const unitPrice = isBox ? (product.boxPrice || 0) : product.price;
+      const label = isBox ? `${product.name} (korobka)` : product.name;
+      return { product, qty, isBox, unitPrice, label, key };
+    }).filter(Boolean);
+  const cartTotal = cartItems.reduce((s, c) => s + c.unitPrice * c.qty, 0);
   const cartCount = cartItems.reduce((s, c) => s + c.qty, 0);
   const add = (id) => setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
   const sub = (id) => setCart((c) => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
+  const addBox = (id) => add(id + BOX_SUFFIX);
+  const subBox = (id) => sub(id + BOX_SUFFIX);
 
   const submitOrder = () => {
     if (!customer.name.trim() || !customer.phone.trim() || !customer.address.trim() || cartItems.length === 0) return;
     const order = {
       id: uid(),
-      items: cartItems.map((c) => ({ productId: c.product.id, name: c.product.name, price: c.product.price, qty: c.qty })),
+      items: cartItems.map((c) => ({ productId: c.product.id, name: c.label, price: c.unitPrice, qty: c.qty, kind: c.isBox ? "box" : "piece" })),
       total: cartTotal, customerName: customer.name, phone: customer.phone, address: customer.address,
       paymentMethod: payMethod, paymentStatus: payMethod === "qarz" ? "qarz" : "to'langan",
       shopId: null, employeeId: null, vehicleId: null, stockDeducted: false,
@@ -466,7 +477,10 @@ function ClientView({ info, categories, products, orders, setOrders, onSearchSub
     setCustomer({ name: "", phone: "", address: "" }); setPayMethod("naqd");
   };
 
-  if (detail) return <ProductDetail product={detail} onBack={() => setDetail(null)} qty={cart[detail.id] || 0} onAdd={() => add(detail.id)} onSub={() => sub(detail.id)} />;
+  if (detail) return <ProductDetail product={detail} onBack={() => setDetail(null)}
+    pieceQty={cart[detail.id] || 0} boxQty={cart[detail.id + BOX_SUFFIX] || 0}
+    onAddPiece={() => add(detail.id)} onSubPiece={() => sub(detail.id)}
+    onAddBox={() => addBox(detail.id)} onSubBox={() => subBox(detail.id)} />;
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px 110px", position: "relative" }}>
@@ -561,9 +575,9 @@ function ClientView({ info, categories, products, orders, setOrders, onSearchSub
               <button onClick={() => setCheckoutOpen(false)} style={{ background: "none", border: "none", color: "var(--text)" }}><X size={22} /></button>
             </div>
             {cartItems.map((c) => (
-              <div key={c.product.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-                <span>{flavorFor(c.product.name).emoji} {c.product.name} x{c.qty}</span>
-                <span style={{ fontWeight: 700 }}>{fmt(c.product.price * c.qty)}</span>
+              <div key={c.key} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
+                <span>{flavorFor(c.product.name).emoji} {c.label} x{c.qty}</span>
+                <span style={{ fontWeight: 700 }}>{fmt(c.unitPrice * c.qty)}</span>
               </div>
             ))}
             <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", fontWeight: 800 }}>
@@ -646,9 +660,11 @@ function CatChip({ label, active, onClick }) {
   );
 }
 
-function ProductDetail({ product, onBack, qty, onAdd, onSub }) {
+function ProductDetail({ product, onBack, pieceQty, boxQty, onAddPiece, onSubPiece, onAddBox, onSubBox }) {
   const f = flavorFor(product.name);
   const imgs = getProductImages(product);
+  const hasBox = (product.boxPrice || 0) > 0;
+  const total = product.price * pieceQty + (product.boxPrice || 0) * boxQty;
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh" }}>
       <div style={{ height: 320, position: "relative", overflow: "hidden" }}>
@@ -658,17 +674,42 @@ function ProductDetail({ product, onBack, qty, onAdd, onSub }) {
       </div>
       <div style={{ padding: 20 }}>
         <div style={{ fontSize: 24, fontWeight: 800 }}>{product.name}</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "var(--accent)", marginTop: 4 }}>{fmt(product.price)}</div>
-        <div style={{ fontSize: 14, color: "var(--dim)", marginTop: 14, lineHeight: 1.7 }}>{product.desc || "Tavsif kiritilmagan."}</div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 30 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <button onClick={onSub} style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", borderRadius: 12, width: 40, height: 40 }}><Minus size={16} /></button>
-            <span style={{ fontWeight: 800, fontSize: 18 }}>{qty}</span>
-            <button onClick={onAdd} style={{ background: "linear-gradient(135deg,var(--accent),var(--accent2))", border: "none", color: "#fff", borderRadius: 12, width: 40, height: 40 }}><Plus size={16} /></button>
-          </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+          <span style={{ background: "rgba(124,108,255,0.15)", color: "var(--accent)", padding: "5px 10px", borderRadius: 10, fontWeight: 800, fontSize: 13 }}>Dona: {fmt(product.price)}</span>
+          {hasBox && <span style={{ background: "rgba(168,85,247,0.15)", color: "#c084fc", padding: "5px 10px", borderRadius: 10, fontWeight: 800, fontSize: 13 }}>Korobka: {fmt(product.boxPrice)}</span>}
         </div>
-        <button onClick={onAdd} style={{ width: "100%", marginTop: 26, background: "linear-gradient(135deg,var(--accent),var(--accent2))",
-            border: "none", color: "#fff", borderRadius: 14, padding: 15, fontWeight: 800, fontSize: 15 }}>Savatga qo'shish</button>
+        <div style={{ fontSize: 14, color: "var(--dim)", marginTop: 14, lineHeight: 1.7 }}>{product.desc || "Tavsif kiritilmagan."}</div>
+
+        <div style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 12 }}>
+          <QtyRow label="Dona" price={product.price} qty={pieceQty} onAdd={onAddPiece} onSub={onSubPiece} />
+          {hasBox && <QtyRow label="Korobka" price={product.boxPrice} qty={boxQty} onAdd={onAddBox} onSub={onSubBox} />}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, padding: "12px 14px", background: "rgba(255,255,255,0.04)", borderRadius: 12 }}>
+          <span style={{ fontSize: 13, color: "var(--dim)", fontWeight: 700 }}>Jami</span>
+          <span style={{ fontWeight: 800, fontSize: 18 }}>{fmt(total)}</span>
+        </div>
+
+        <button onClick={pieceQty + boxQty === 0 ? onAddPiece : onBack} style={{ width: "100%", marginTop: 18, background: "linear-gradient(135deg,var(--accent),var(--accent2))",
+            border: "none", color: "#fff", borderRadius: 14, padding: 15, fontWeight: 800, fontSize: 15 }}>
+          {pieceQty + boxQty === 0 ? "Savatga qo'shish" : "Savatga qaytish"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QtyRow({ label, price, qty, onAdd, onSub }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", borderRadius: 14 }}>
+      <div>
+        <div style={{ fontWeight: 800, fontSize: 14 }}>{label}</div>
+        <div style={{ fontSize: 12, color: "var(--dim)" }}>{fmt(price)}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={onSub} style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}><Minus size={16} /></button>
+        <span style={{ fontWeight: 800, fontSize: 17, minWidth: 22, textAlign: "center" }}>{qty}</span>
+        <button onClick={onAdd} style={{ background: "linear-gradient(135deg,var(--accent),var(--accent2))", border: "none", color: "#fff", borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={16} /></button>
       </div>
     </div>
   );
@@ -1000,14 +1041,15 @@ const MAX_IMAGES = 15;
 function ProductsTab({ products, setProducts, categories }) {
   const [form, setForm] = useState(null);
   const fileRef = useRef(null);
-  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", wholesalePrice: "", stock: "", desc: "", popular: false, images: [] });
-  const startEdit = (p) => setForm({ ...p, price: String(p.price), wholesalePrice: String(p.wholesalePrice ?? ""), stock: String(p.stock ?? ""), images: getProductImages(p) });
+  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", wholesalePrice: "", boxPrice: "", stock: "", desc: "", popular: false, images: [] });
+  const startEdit = (p) => setForm({ ...p, price: String(p.price), wholesalePrice: String(p.wholesalePrice ?? ""), boxPrice: String(p.boxPrice ?? ""), stock: String(p.stock ?? ""), images: getProductImages(p) });
   const save = () => {
     if (!form.name.trim() || !form.price) return;
     const clean = {
       ...form,
       price: Number(form.price),
       wholesalePrice: form.wholesalePrice === "" ? 0 : Number(form.wholesalePrice),
+      boxPrice: form.boxPrice === "" ? 0 : Number(form.boxPrice),
       stock: form.stock === "" ? 0 : Number(form.stock),
       images: form.images || [],
       image: "",
@@ -1084,8 +1126,9 @@ function ProductsTab({ products, setProducts, categories }) {
             <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
-            <Field placeholder="Chakana narxi (so'm)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
-            <Field placeholder="Optom (ulgurji) narxi (so'm)" type="number" value={form.wholesalePrice} onChange={(e) => setForm({ ...form, wholesalePrice: e.target.value })} />
+            <Field placeholder="Chakana narxi — dona (so'm)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+            <Field placeholder="Optom (ulgurji) narxi — dona (so'm)" type="number" value={form.wholesalePrice} onChange={(e) => setForm({ ...form, wholesalePrice: e.target.value })} />
+            <Field placeholder="Korobka narxi (so'm)" type="number" value={form.boxPrice} onChange={(e) => setForm({ ...form, boxPrice: e.target.value })} />
             <Field placeholder="Dona (qoldiq soni)" type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
             <Field placeholder="Tavsif" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} />
           </div>
@@ -1111,6 +1154,7 @@ function ProductsTab({ products, setProducts, categories }) {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4, fontSize: 11 }}>
                   <span style={{ background: "rgba(56,189,248,0.15)", color: "var(--accent)", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Chakana: {fmt(p.price)}</span>
                   {p.wholesalePrice > 0 && <span style={{ background: "rgba(168,85,247,0.15)", color: "#c084fc", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Optom: {fmt(p.wholesalePrice)}</span>}
+                  {p.boxPrice > 0 && <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Korobka: {fmt(p.boxPrice)}</span>}
                   <span style={{ background: (p.stock ?? 0) > 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", color: (p.stock ?? 0) > 0 ? "#4ade80" : "#f87171", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Qoldiq: {p.stock ?? 0} dona</span>
                 </div>
               </div>
