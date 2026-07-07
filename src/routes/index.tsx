@@ -44,12 +44,12 @@ const DEFAULT_CATEGORIES = [
   { id: "c3", name: "Yong'oqli" }, { id: "c4", name: "Maxsus" },
 ];
 const DEFAULT_PRODUCTS = [
-  { id: "p1", name: "Qulupnayli", categoryId: "c1", price: 15000, desc: "Yangi qulupnay bilan tayyorlangan, yengil va tetiklantiruvchi ta'm.", popular: true, image: "" },
-  { id: "p2", name: "Limonli sorbet", categoryId: "c1", price: 14000, desc: "Muzdek limon sorbeti, yozgi kunlar uchun ideal.", popular: false, image: "" },
-  { id: "p3", name: "Shokoladli", categoryId: "c2", price: 16000, desc: "Belgiya qora shokoladi qo'shilgan klassik ta'm.", popular: true, image: "" },
-  { id: "p4", name: "Fistashkali", categoryId: "c3", price: 18000, desc: "Haqiqiy fistashka yong'og'idan tayyorlangan premium ta'm.", popular: true, image: "" },
-  { id: "p5", name: "Bananli split", categoryId: "c4", price: 22000, desc: "Banan, krem va qovurilgan yong'oq bilan boy tarkib.", popular: false, image: "" },
-  { id: "p6", name: "Ko'k moviy", categoryId: "c4", price: 17000, desc: "Ko'k mevalar aralashmasidan tayyorlangan maxsus retsept.", popular: false, image: "" },
+  { id: "p1", name: "Qulupnayli", categoryId: "c1", price: 15000, wholesalePrice: 11000, stock: 100, desc: "Yangi qulupnay bilan tayyorlangan, yengil va tetiklantiruvchi ta'm.", popular: true, image: "" },
+  { id: "p2", name: "Limonli sorbet", categoryId: "c1", price: 14000, wholesalePrice: 10000, stock: 80, desc: "Muzdek limon sorbeti, yozgi kunlar uchun ideal.", popular: false, image: "" },
+  { id: "p3", name: "Shokoladli", categoryId: "c2", price: 16000, wholesalePrice: 12000, stock: 120, desc: "Belgiya qora shokoladi qo'shilgan klassik ta'm.", popular: true, image: "" },
+  { id: "p4", name: "Fistashkali", categoryId: "c3", price: 18000, wholesalePrice: 13500, stock: 60, desc: "Haqiqiy fistashka yong'og'idan tayyorlangan premium ta'm.", popular: true, image: "" },
+  { id: "p5", name: "Bananli split", categoryId: "c4", price: 22000, wholesalePrice: 17000, stock: 50, desc: "Banan, krem va qovurilgan yong'oq bilan boy tarkib.", popular: false, image: "" },
+  { id: "p6", name: "Ko'k moviy", categoryId: "c4", price: 17000, wholesalePrice: 12500, stock: 70, desc: "Ko'k mevalar aralashmasidan tayyorlangan maxsus retsept.", popular: false, image: "" },
 ];
 const DEFAULT_ADMIN_AUTH = { username: "Svitlogorie.Urgench", password: "Kk19931997" };
 
@@ -1000,17 +1000,25 @@ const MAX_IMAGES = 15;
 function ProductsTab({ products, setProducts, categories }) {
   const [form, setForm] = useState(null);
   const fileRef = useRef(null);
-  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", desc: "", popular: false, images: [] });
-  const startEdit = (p) => setForm({ ...p, price: String(p.price), images: getProductImages(p) });
+  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", wholesalePrice: "", stock: "", desc: "", popular: false, images: [] });
+  const startEdit = (p) => setForm({ ...p, price: String(p.price), wholesalePrice: String(p.wholesalePrice ?? ""), stock: String(p.stock ?? ""), images: getProductImages(p) });
   const save = () => {
     if (!form.name.trim() || !form.price) return;
-    const clean = { ...form, price: Number(form.price), images: form.images || [], image: "" };
+    const clean = {
+      ...form,
+      price: Number(form.price),
+      wholesalePrice: form.wholesalePrice === "" ? 0 : Number(form.wholesalePrice),
+      stock: form.stock === "" ? 0 : Number(form.stock),
+      images: form.images || [],
+      image: "",
+    };
     if (form.id) setProducts(products.map((p) => (p.id === form.id ? clean : p)));
     else setProducts([...products, { ...clean, id: uid() }]);
     setForm(null);
   };
   const remove = (id) => setProducts(products.filter((p) => p.id !== id));
 
+  const MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GB per image, max sifat
   const onFiles = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -1018,7 +1026,7 @@ function ProductsTab({ products, setProducts, categories }) {
     if (room <= 0) { alert(`Maksimum ${MAX_IMAGES} ta rasm`); return; }
     const slice = files.slice(0, room);
     Promise.all(slice.map((file) => new Promise((res) => {
-      if (file.size > 2 * 1024 * 1024) { res(null); return; }
+      if (file.size > MAX_BYTES) { res(null); return; }
       const r = new FileReader();
       r.onload = () => res(r.result);
       r.onerror = () => res(null);
@@ -1026,7 +1034,7 @@ function ProductsTab({ products, setProducts, categories }) {
     }))).then((results) => {
       const ok = results.filter(Boolean);
       setForm((f) => ({ ...f, images: [...(f.images || []), ...ok] }));
-      if (results.some((r) => !r)) alert("Ba'zi rasmlar 2MB dan katta bo'lgani uchun tashlab yuborildi");
+      if (results.some((r) => !r)) alert("Ba'zi rasmlar 2GB dan katta bo'lgani uchun tashlab yuborildi");
     });
     e.target.value = "";
   };
@@ -1069,14 +1077,16 @@ function ProductsTab({ products, setProducts, categories }) {
                 <div style={{ height: 90, borderRadius: 10, border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--dim)" }}><ImageIcon size={24} /></div>
               )}
             </div>
-            <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 6 }}>10-15 tagacha rasm yuklash mumkin. Har biri max 2MB. Birinchi rasm asosiy hisoblanadi.</div>
+            <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 6 }}>10-15 tagacha rasm yuklash mumkin. Har biri max 2GB — maksimal sifat va hajm cheklanmagan. Birinchi rasm asosiy hisoblanadi.</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
             <Field placeholder="Nomi" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
-            <Field placeholder="Narxi" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+            <Field placeholder="Chakana narxi (so'm)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+            <Field placeholder="Optom (ulgurji) narxi (so'm)" type="number" value={form.wholesalePrice} onChange={(e) => setForm({ ...form, wholesalePrice: e.target.value })} />
+            <Field placeholder="Dona (qoldiq soni)" type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
             <Field placeholder="Tavsif" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} />
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 8 }}>
@@ -1097,9 +1107,15 @@ function ProductsTab({ products, setProducts, categories }) {
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 700 }}>{p.name} {p.popular && <Star size={11} color="var(--warn)" style={{ display: "inline" }} />}</div>
-                <div style={{ fontSize: 12, color: "var(--dim)" }}>{categories.find((c) => c.id === p.categoryId)?.name || "—"} · {fmt(p.price)}</div>
+                <div style={{ fontSize: 12, color: "var(--dim)" }}>{categories.find((c) => c.id === p.categoryId)?.name || "—"}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4, fontSize: 11 }}>
+                  <span style={{ background: "rgba(56,189,248,0.15)", color: "var(--accent)", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Chakana: {fmt(p.price)}</span>
+                  {p.wholesalePrice > 0 && <span style={{ background: "rgba(168,85,247,0.15)", color: "#c084fc", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Optom: {fmt(p.wholesalePrice)}</span>}
+                  <span style={{ background: (p.stock ?? 0) > 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", color: (p.stock ?? 0) > 0 ? "#4ade80" : "#f87171", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Qoldiq: {p.stock ?? 0} dona</span>
+                </div>
               </div>
             </div>
+
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
               <GhostBtn onClick={() => startEdit(p)}><Edit2 size={12} /></GhostBtn>
               <GhostBtn danger onClick={() => remove(p.id)}><Trash2 size={12} /></GhostBtn>
