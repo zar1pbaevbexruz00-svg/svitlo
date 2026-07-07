@@ -51,7 +51,7 @@ const DEFAULT_PRODUCTS = [
   { id: "p5", name: "Bananli split", categoryId: "c4", price: 22000, desc: "Banan, krem va qovurilgan yong'oq bilan boy tarkib.", popular: false, image: "" },
   { id: "p6", name: "Ko'k moviy", categoryId: "c4", price: 17000, desc: "Ko'k mevalar aralashmasidan tayyorlangan maxsus retsept.", popular: false, image: "" },
 ];
-const DEFAULT_ADMIN_AUTH = { username: "svitlo_gorieee", password: "admin2026" };
+const DEFAULT_ADMIN_AUTH = { username: "Svitlogorie.Urgench", password: "Kk19931997" };
 
 function safeGet(key, fallback) {
   try {
@@ -203,7 +203,14 @@ function App() {
     setVehicles(safeGet("pi_vehicles", []));
     setOrders(safeGet("pi_orders", []));
     setDebtPayments(safeGet("pi_debt_payments", []));
-    setAdminAuth(safeGet("pi_admin_auth", DEFAULT_ADMIN_AUTH));
+    const storedAuth = safeGet("pi_admin_auth", DEFAULT_ADMIN_AUTH);
+    // Force-migrate old default credentials to the new ones
+    if (storedAuth?.username === "svitlo_gorieee" && storedAuth?.password === "admin2026") {
+      setAdminAuth(DEFAULT_ADMIN_AUTH);
+      safeSet("pi_admin_auth", DEFAULT_ADMIN_AUTH);
+    } else {
+      setAdminAuth(storedAuth);
+    }
     setLoaded(true);
   }, []);
 
