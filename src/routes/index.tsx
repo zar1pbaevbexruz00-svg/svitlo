@@ -660,9 +660,11 @@ function CatChip({ label, active, onClick }) {
   );
 }
 
-function ProductDetail({ product, onBack, qty, onAdd, onSub }) {
+function ProductDetail({ product, onBack, pieceQty, boxQty, onAddPiece, onSubPiece, onAddBox, onSubBox }) {
   const f = flavorFor(product.name);
   const imgs = getProductImages(product);
+  const hasBox = (product.boxPrice || 0) > 0;
+  const total = product.price * pieceQty + (product.boxPrice || 0) * boxQty;
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh" }}>
       <div style={{ height: 320, position: "relative", overflow: "hidden" }}>
@@ -672,17 +674,42 @@ function ProductDetail({ product, onBack, qty, onAdd, onSub }) {
       </div>
       <div style={{ padding: 20 }}>
         <div style={{ fontSize: 24, fontWeight: 800 }}>{product.name}</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "var(--accent)", marginTop: 4 }}>{fmt(product.price)}</div>
-        <div style={{ fontSize: 14, color: "var(--dim)", marginTop: 14, lineHeight: 1.7 }}>{product.desc || "Tavsif kiritilmagan."}</div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 30 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <button onClick={onSub} style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", borderRadius: 12, width: 40, height: 40 }}><Minus size={16} /></button>
-            <span style={{ fontWeight: 800, fontSize: 18 }}>{qty}</span>
-            <button onClick={onAdd} style={{ background: "linear-gradient(135deg,var(--accent),var(--accent2))", border: "none", color: "#fff", borderRadius: 12, width: 40, height: 40 }}><Plus size={16} /></button>
-          </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+          <span style={{ background: "rgba(124,108,255,0.15)", color: "var(--accent)", padding: "5px 10px", borderRadius: 10, fontWeight: 800, fontSize: 13 }}>Dona: {fmt(product.price)}</span>
+          {hasBox && <span style={{ background: "rgba(168,85,247,0.15)", color: "#c084fc", padding: "5px 10px", borderRadius: 10, fontWeight: 800, fontSize: 13 }}>Korobka: {fmt(product.boxPrice)}</span>}
         </div>
-        <button onClick={onAdd} style={{ width: "100%", marginTop: 26, background: "linear-gradient(135deg,var(--accent),var(--accent2))",
-            border: "none", color: "#fff", borderRadius: 14, padding: 15, fontWeight: 800, fontSize: 15 }}>Savatga qo'shish</button>
+        <div style={{ fontSize: 14, color: "var(--dim)", marginTop: 14, lineHeight: 1.7 }}>{product.desc || "Tavsif kiritilmagan."}</div>
+
+        <div style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 12 }}>
+          <QtyRow label="Dona" price={product.price} qty={pieceQty} onAdd={onAddPiece} onSub={onSubPiece} />
+          {hasBox && <QtyRow label="Korobka" price={product.boxPrice} qty={boxQty} onAdd={onAddBox} onSub={onSubBox} />}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, padding: "12px 14px", background: "rgba(255,255,255,0.04)", borderRadius: 12 }}>
+          <span style={{ fontSize: 13, color: "var(--dim)", fontWeight: 700 }}>Jami</span>
+          <span style={{ fontWeight: 800, fontSize: 18 }}>{fmt(total)}</span>
+        </div>
+
+        <button onClick={pieceQty + boxQty === 0 ? onAddPiece : onBack} style={{ width: "100%", marginTop: 18, background: "linear-gradient(135deg,var(--accent),var(--accent2))",
+            border: "none", color: "#fff", borderRadius: 14, padding: 15, fontWeight: 800, fontSize: 15 }}>
+          {pieceQty + boxQty === 0 ? "Savatga qo'shish" : "Savatga qaytish"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QtyRow({ label, price, qty, onAdd, onSub }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", borderRadius: 14 }}>
+      <div>
+        <div style={{ fontWeight: 800, fontSize: 14 }}>{label}</div>
+        <div style={{ fontSize: 12, color: "var(--dim)" }}>{fmt(price)}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={onSub} style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}><Minus size={16} /></button>
+        <span style={{ fontWeight: 800, fontSize: 17, minWidth: 22, textAlign: "center" }}>{qty}</span>
+        <button onClick={onAdd} style={{ background: "linear-gradient(135deg,var(--accent),var(--accent2))", border: "none", color: "#fff", borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={16} /></button>
       </div>
     </div>
   );
