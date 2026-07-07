@@ -203,7 +203,14 @@ function App() {
     setVehicles(safeGet("pi_vehicles", []));
     setOrders(safeGet("pi_orders", []));
     setDebtPayments(safeGet("pi_debt_payments", []));
-    setAdminAuth(safeGet("pi_admin_auth", DEFAULT_ADMIN_AUTH));
+    const storedAuth = safeGet("pi_admin_auth", DEFAULT_ADMIN_AUTH);
+    // Force-migrate old default credentials to the new ones
+    if (storedAuth?.username === "svitlo_gorieee" && storedAuth?.password === "admin2026") {
+      setAdminAuth(DEFAULT_ADMIN_AUTH);
+      safeSet("pi_admin_auth", DEFAULT_ADMIN_AUTH);
+    } else {
+      setAdminAuth(storedAuth);
+    }
     setLoaded(true);
   }, []);
 
