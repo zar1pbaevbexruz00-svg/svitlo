@@ -1154,6 +1154,7 @@ function ProductsTab({ products, setProducts, categories }) {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4, fontSize: 11 }}>
                   <span style={{ background: "rgba(56,189,248,0.15)", color: "var(--accent)", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Chakana: {fmt(p.price)}</span>
                   {p.wholesalePrice > 0 && <span style={{ background: "rgba(168,85,247,0.15)", color: "#c084fc", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Optom: {fmt(p.wholesalePrice)}</span>}
+                  {p.boxPrice > 0 && <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Korobka: {fmt(p.boxPrice)}</span>}
                   <span style={{ background: (p.stock ?? 0) > 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", color: (p.stock ?? 0) > 0 ? "#4ade80" : "#f87171", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>Qoldiq: {p.stock ?? 0} dona</span>
                 </div>
               </div>
