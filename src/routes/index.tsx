@@ -443,18 +443,29 @@ function ClientView({ info, categories, products, orders, setOrders, onSearchSub
   );
   const popular = products.filter((p) => p.popular);
 
+  const BOX_SUFFIX = "__box";
   const cartItems = Object.entries(cart).filter(([, q]) => q > 0)
-    .map(([id, qty]) => ({ product: products.find((p) => p.id === id), qty })).filter((c) => c.product);
-  const cartTotal = cartItems.reduce((s, c) => s + c.product.price * c.qty, 0);
+    .map(([key, qty]) => {
+      const isBox = key.endsWith(BOX_SUFFIX);
+      const pid = isBox ? key.slice(0, -BOX_SUFFIX.length) : key;
+      const product = products.find((p) => p.id === pid);
+      if (!product) return null;
+      const unitPrice = isBox ? (product.boxPrice || 0) : product.price;
+      const label = isBox ? `${product.name} (korobka)` : product.name;
+      return { product, qty, isBox, unitPrice, label, key };
+    }).filter(Boolean);
+  const cartTotal = cartItems.reduce((s, c) => s + c.unitPrice * c.qty, 0);
   const cartCount = cartItems.reduce((s, c) => s + c.qty, 0);
   const add = (id) => setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
   const sub = (id) => setCart((c) => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
+  const addBox = (id) => add(id + BOX_SUFFIX);
+  const subBox = (id) => sub(id + BOX_SUFFIX);
 
   const submitOrder = () => {
     if (!customer.name.trim() || !customer.phone.trim() || !customer.address.trim() || cartItems.length === 0) return;
     const order = {
       id: uid(),
-      items: cartItems.map((c) => ({ productId: c.product.id, name: c.product.name, price: c.product.price, qty: c.qty })),
+      items: cartItems.map((c) => ({ productId: c.product.id, name: c.label, price: c.unitPrice, qty: c.qty, kind: c.isBox ? "box" : "piece" })),
       total: cartTotal, customerName: customer.name, phone: customer.phone, address: customer.address,
       paymentMethod: payMethod, paymentStatus: payMethod === "qarz" ? "qarz" : "to'langan",
       shopId: null, employeeId: null, vehicleId: null, stockDeducted: false,
@@ -466,7 +477,10 @@ function ClientView({ info, categories, products, orders, setOrders, onSearchSub
     setCustomer({ name: "", phone: "", address: "" }); setPayMethod("naqd");
   };
 
-  if (detail) return <ProductDetail product={detail} onBack={() => setDetail(null)} qty={cart[detail.id] || 0} onAdd={() => add(detail.id)} onSub={() => sub(detail.id)} />;
+  if (detail) return <ProductDetail product={detail} onBack={() => setDetail(null)}
+    pieceQty={cart[detail.id] || 0} boxQty={cart[detail.id + BOX_SUFFIX] || 0}
+    onAddPiece={() => add(detail.id)} onSubPiece={() => sub(detail.id)}
+    onAddBox={() => addBox(detail.id)} onSubBox={() => subBox(detail.id)} />;
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px 110px", position: "relative" }}>
