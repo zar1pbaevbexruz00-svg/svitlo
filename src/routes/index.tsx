@@ -1000,17 +1000,25 @@ const MAX_IMAGES = 15;
 function ProductsTab({ products, setProducts, categories }) {
   const [form, setForm] = useState(null);
   const fileRef = useRef(null);
-  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", desc: "", popular: false, images: [] });
-  const startEdit = (p) => setForm({ ...p, price: String(p.price), images: getProductImages(p) });
+  const startNew = () => setForm({ id: null, name: "", categoryId: categories[0]?.id || "", price: "", wholesalePrice: "", stock: "", desc: "", popular: false, images: [] });
+  const startEdit = (p) => setForm({ ...p, price: String(p.price), wholesalePrice: String(p.wholesalePrice ?? ""), stock: String(p.stock ?? ""), images: getProductImages(p) });
   const save = () => {
     if (!form.name.trim() || !form.price) return;
-    const clean = { ...form, price: Number(form.price), images: form.images || [], image: "" };
+    const clean = {
+      ...form,
+      price: Number(form.price),
+      wholesalePrice: form.wholesalePrice === "" ? 0 : Number(form.wholesalePrice),
+      stock: form.stock === "" ? 0 : Number(form.stock),
+      images: form.images || [],
+      image: "",
+    };
     if (form.id) setProducts(products.map((p) => (p.id === form.id ? clean : p)));
     else setProducts([...products, { ...clean, id: uid() }]);
     setForm(null);
   };
   const remove = (id) => setProducts(products.filter((p) => p.id !== id));
 
+  const MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GB per image, max sifat
   const onFiles = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -1018,7 +1026,7 @@ function ProductsTab({ products, setProducts, categories }) {
     if (room <= 0) { alert(`Maksimum ${MAX_IMAGES} ta rasm`); return; }
     const slice = files.slice(0, room);
     Promise.all(slice.map((file) => new Promise((res) => {
-      if (file.size > 2 * 1024 * 1024) { res(null); return; }
+      if (file.size > MAX_BYTES) { res(null); return; }
       const r = new FileReader();
       r.onload = () => res(r.result);
       r.onerror = () => res(null);
@@ -1026,7 +1034,7 @@ function ProductsTab({ products, setProducts, categories }) {
     }))).then((results) => {
       const ok = results.filter(Boolean);
       setForm((f) => ({ ...f, images: [...(f.images || []), ...ok] }));
-      if (results.some((r) => !r)) alert("Ba'zi rasmlar 2MB dan katta bo'lgani uchun tashlab yuborildi");
+      if (results.some((r) => !r)) alert("Ba'zi rasmlar 2GB dan katta bo'lgani uchun tashlab yuborildi");
     });
     e.target.value = "";
   };
