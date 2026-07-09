@@ -472,6 +472,18 @@ function ClientView({ info, categories, products, setProducts, orders, setOrders
       shopId: null, employeeId: null, vehicleId: null, stockDeducted: false,
       status: "yangi", createdAt: Date.now(),
     };
+    // Auto-deduct from warehouse (Sklad) immediately when order placed
+    const deductMap = {};
+    cartItems.forEach((c) => {
+      const key = c.product.id;
+      if (!deductMap[key]) deductMap[key] = { piece: 0, box: 0 };
+      if (c.isBox) deductMap[key].box += c.qty; else deductMap[key].piece += c.qty;
+    });
+    setProducts(products.map((p) => {
+      const d = deductMap[p.id];
+      if (!d) return p;
+      return { ...p, stock: Math.max(0, (p.stock || 0) - d.piece), boxStock: Math.max(0, (p.boxStock || 0) - d.box) };
+    }));
     setOrders([order, ...orders]);
     setConfirmed(order);
     setCart({}); setCheckoutOpen(false);
