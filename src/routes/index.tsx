@@ -731,6 +731,7 @@ function QtyRow({ label, price, qty, onAdd, onSub }) {
 /* ---------------- ADMIN VIEW ---------------- */
 const ADMIN_TABS = [
   { id: "orders", label: "Buyurtmalar", icon: Package },
+  { id: "warehouse", label: "Sklad", icon: Package },
   { id: "employees", label: "Ishchilar", icon: Users },
   { id: "vehicles", label: "Avtomobillar", icon: Truck },
   { id: "shops", label: "Do'konlar", icon: Store },
