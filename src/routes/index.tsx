@@ -425,7 +425,7 @@ function LoginModal({ kind, onClose, onSubmit }) {
 }
 
 /* ---------------- CLIENT VIEW ---------------- */
-function ClientView({ info, categories, products, orders, setOrders, onSearchSubmit }) {
+function ClientView({ info, categories, products, setProducts, orders, setOrders, onSearchSubmit }) {
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState(null);
   const [detail, setDetail] = useState(null);
