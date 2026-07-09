@@ -1011,11 +1011,16 @@ function VehiclesTab({ vehicles, setVehicles, employees }) {
 
 function ShopsTab({ shops, setShops }) {
   const [form, setForm] = useState(null);
-  const startNew = () => setForm({ id: null, name: "", address: "" });
+  const nextNumber = () => {
+    const nums = shops.map((s) => Number(s.number) || 0);
+    return String((nums.length ? Math.max(...nums) : 0) + 1);
+  };
+  const startNew = () => setForm({ id: null, number: nextNumber(), name: "", address: "", phone: "", contactPerson: "" });
   const save = () => {
     if (!form.name.trim()) return;
-    if (form.id) setShops(shops.map((s) => (s.id === form.id ? form : s)));
-    else setShops([...shops, { ...form, id: uid() }]);
+    const clean = { ...form, number: String(form.number || "").trim() };
+    if (form.id) setShops(shops.map((s) => (s.id === form.id ? clean : s)));
+    else setShops([...shops, { ...clean, id: uid() }]);
     setForm(null);
   };
   const remove = (id) => setShops(shops.filter((s) => s.id !== id));
@@ -1026,9 +1031,12 @@ function ShopsTab({ shops, setShops }) {
       </div>
       {form && (
         <GlassCard>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", gap: 8, marginBottom: 8 }}>
+            <Field placeholder="№" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} />
             <Field placeholder="Nomi" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             <Field placeholder="Manzili" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+            <Field placeholder="Telefon" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <Field placeholder="Mas'ul shaxs (mijoz ismi)" value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} />
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <GhostBtn primary onClick={save}><Save size={12} /> Saqlash</GhostBtn>
@@ -1038,16 +1046,122 @@ function ShopsTab({ shops, setShops }) {
       )}
       {shops.map((s) => (
         <GlassCard key={s.id}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div><div style={{ fontWeight: 700 }}>{s.name}</div><div style={{ fontSize: 12, color: "var(--dim)" }}>{s.address}</div></div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <GhostBtn onClick={() => setForm(s)}><Edit2 size={12} /></GhostBtn>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+              <div style={{ minWidth: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg,var(--accent),var(--accent2))", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#fff", fontSize: 14, padding: "0 8px" }}>
+                №{s.number || "—"}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700 }}>{s.name}</div>
+                <div style={{ fontSize: 12, color: "var(--dim)" }}>{s.address}{s.phone ? ` · ${s.phone}` : ""}</div>
+                {s.contactPerson && <div style={{ fontSize: 11, color: "var(--dim)" }}>Mas'ul: {s.contactPerson}</div>}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <GhostBtn onClick={() => setForm({ number: nextNumber(), phone: "", contactPerson: "", ...s })}><Edit2 size={12} /></GhostBtn>
               <GhostBtn danger onClick={() => remove(s.id)}><Trash2 size={12} /></GhostBtn>
             </div>
           </div>
         </GlassCard>
       ))}
       {shops.length === 0 && <GlassCard>Do'konlar qo'shilmagan.</GlassCard>}
+    </>
+  );
+}
+
+/* ---------------- WAREHOUSE (SKLAD) ---------------- */
+function WarehouseTab({ products, setProducts, categories, orders }) {
+  const [restockFor, setRestockFor] = useState(null);
+  const [addPieces, setAddPieces] = useState("");
+  const [addBoxes, setAddBoxes] = useState("");
+  const [filter, setFilter] = useState("all"); // all | low | out
+
+  const enriched = useMemo(() => products.map((p) => {
+    const low = Number(p.lowStock) || 10;
+    const stock = Number(p.stock) || 0;
+    const boxStock = Number(p.boxStock) || 0;
+    let state = "ok";
+    if (stock === 0 && boxStock === 0) state = "out";
+    else if (stock <= low) state = "low";
+    return { ...p, _stock: stock, _boxStock: boxStock, _low: low, _state: state };
+  }), [products]);
+
+  const shown = enriched.filter((p) => filter === "all" ? true : filter === "low" ? p._state !== "ok" : p._state === "out");
+
+  const totals = enriched.reduce((acc, p) => {
+    acc.pieces += p._stock; acc.boxes += p._boxStock;
+    acc.value += p._stock * (Number(p.price) || 0) + p._boxStock * (Number(p.boxPrice) || 0);
+    if (p._state === "low") acc.low += 1;
+    if (p._state === "out") acc.out += 1;
+    return acc;
+  }, { pieces: 0, boxes: 0, value: 0, low: 0, out: 0 });
+
+  const totalOrders = orders?.length || 0;
+
+  const applyRestock = () => {
+    const pcs = Number(addPieces) || 0;
+    const bxs = Number(addBoxes) || 0;
+    if (pcs === 0 && bxs === 0) { setRestockFor(null); return; }
+    setProducts(products.map((p) => p.id === restockFor
+      ? { ...p, stock: (Number(p.stock) || 0) + pcs, boxStock: (Number(p.boxStock) || 0) + bxs }
+      : p));
+    setRestockFor(null); setAddPieces(""); setAddBoxes("");
+  };
+
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 12 }}>
+        <StatBox label="Jami dona" value={totals.pieces} icon={<Package size={16} />} />
+        <StatBox label="Jami korobka" value={totals.boxes} icon={<Package size={16} />} />
+        <StatBox label="Sklad qiymati" value={fmt(totals.value)} icon={<TrendingUp size={16} />} tone="good" />
+        <StatBox label="Kam qoldiq" value={totals.low} icon={<AlertCircle size={16} />} tone="warn" />
+        <StatBox label="Tugagan" value={totals.out} icon={<AlertCircle size={16} />} tone="bad" />
+        <StatBox label="Buyurtmalar" value={totalOrders} icon={<ShoppingBag size={16} />} />
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+        <GhostBtn primary={filter === "all"} onClick={() => setFilter("all")}>Barchasi</GhostBtn>
+        <GhostBtn primary={filter === "low"} onClick={() => setFilter("low")}>Kam / tugagan</GhostBtn>
+        <GhostBtn primary={filter === "out"} onClick={() => setFilter("out")}>Faqat tugagan</GhostBtn>
+      </div>
+
+      {shown.length === 0 && <GlassCard>Mahsulot yo'q.</GlassCard>}
+      {shown.map((p) => {
+        const cat = categories.find((c) => c.id === p.categoryId)?.name || "—";
+        const tone = p._state === "out" ? "bad" : p._state === "low" ? "warn" : "good";
+        const stateLabel = p._state === "out" ? "Tugagan" : p._state === "low" ? "Kam qoldiq" : "Yetarli";
+        return (
+          <GlassCard key={p.id}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                <div style={{ width: 52, height: 52, borderRadius: 12, overflow: "hidden", flexShrink: 0 }}>
+                  <ProductImage product={p} height={52} fontSize={24} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 800 }}>{p.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--dim)" }}>{cat}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, fontSize: 11 }}>
+                    <span style={{ background: p._stock > p._low ? "rgba(34,197,94,0.15)" : p._stock > 0 ? "rgba(251,191,36,0.15)" : "rgba(239,68,68,0.15)", color: p._stock > p._low ? "#4ade80" : p._stock > 0 ? "#fbbf24" : "#f87171", padding: "3px 8px", borderRadius: 6, fontWeight: 800 }}>{p._stock} dona</span>
+                    <span style={{ background: p._boxStock > 0 ? "rgba(168,85,247,0.15)" : "rgba(239,68,68,0.15)", color: p._boxStock > 0 ? "#c084fc" : "#f87171", padding: "3px 8px", borderRadius: 6, fontWeight: 800 }}>{p._boxStock} korobka</span>
+                    <Pill tone={tone}>{stateLabel}</Pill>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <GhostBtn primary onClick={() => { setRestockFor(p.id); setAddPieces(""); setAddBoxes(""); }}><Plus size={12} /> Sklad to'ldirish</GhostBtn>
+              </div>
+            </div>
+            {restockFor === p.id && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 8, marginTop: 10 }}>
+                <Field type="number" placeholder="+ Dona" value={addPieces} onChange={(e) => setAddPieces(e.target.value)} />
+                <Field type="number" placeholder="+ Korobka" value={addBoxes} onChange={(e) => setAddBoxes(e.target.value)} />
+                <GhostBtn primary onClick={applyRestock}><Save size={12} /> Qo'shish</GhostBtn>
+                <GhostBtn onClick={() => setRestockFor(null)}>X</GhostBtn>
+              </div>
+            )}
+          </GlassCard>
+        );
+      })}
     </>
   );
 }
