@@ -761,6 +761,7 @@ function AdminView(props) {
         })}
       </div>
       {tab === "orders" && <OrdersTab {...props} />}
+      {tab === "warehouse" && <WarehouseTab {...props} />}
       {tab === "employees" && <EmployeesTab {...props} />}
       {tab === "vehicles" && <VehiclesTab {...props} />}
       {tab === "shops" && <ShopsTab {...props} />}
