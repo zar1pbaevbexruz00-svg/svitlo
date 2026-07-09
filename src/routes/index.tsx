@@ -1180,6 +1180,8 @@ function ProductsTab({ products, setProducts, categories }) {
       wholesalePrice: form.wholesalePrice === "" ? 0 : Number(form.wholesalePrice),
       boxPrice: form.boxPrice === "" ? 0 : Number(form.boxPrice),
       stock: form.stock === "" ? 0 : Number(form.stock),
+      boxStock: form.boxStock === "" ? 0 : Number(form.boxStock),
+      lowStock: form.lowStock === "" ? 10 : Number(form.lowStock),
       images: form.images || [],
       image: "",
     };
