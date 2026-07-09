@@ -44,12 +44,12 @@ const DEFAULT_CATEGORIES = [
   { id: "c3", name: "Yong'oqli" }, { id: "c4", name: "Maxsus" },
 ];
 const DEFAULT_PRODUCTS = [
-  { id: "p1", name: "Qulupnayli", categoryId: "c1", price: 15000, wholesalePrice: 11000, boxPrice: 160000, stock: 100, desc: "Yangi qulupnay bilan tayyorlangan, yengil va tetiklantiruvchi ta'm.", popular: true, image: "" },
-  { id: "p2", name: "Limonli sorbet", categoryId: "c1", price: 14000, wholesalePrice: 10000, boxPrice: 150000, stock: 80, desc: "Muzdek limon sorbeti, yozgi kunlar uchun ideal.", popular: false, image: "" },
-  { id: "p3", name: "Shokoladli", categoryId: "c2", price: 16000, wholesalePrice: 12000, boxPrice: 170000, stock: 120, desc: "Belgiya qora shokoladi qo'shilgan klassik ta'm.", popular: true, image: "" },
-  { id: "p4", name: "Fistashkali", categoryId: "c3", price: 18000, wholesalePrice: 13500, boxPrice: 195000, stock: 60, desc: "Haqiqiy fistashka yong'og'idan tayyorlangan premium ta'm.", popular: true, image: "" },
-  { id: "p5", name: "Bananli split", categoryId: "c4", price: 22000, wholesalePrice: 17000, boxPrice: 240000, stock: 50, desc: "Banan, krem va qovurilgan yong'oq bilan boy tarkib.", popular: false, image: "" },
-  { id: "p6", name: "Ko'k moviy", categoryId: "c4", price: 17000, wholesalePrice: 12500, boxPrice: 180000, stock: 70, desc: "Ko'k mevalar aralashmasidan tayyorlangan maxsus retsept.", popular: false, image: "" },
+  { id: "p1", name: "Qulupnayli", categoryId: "c1", price: 15000, wholesalePrice: 11000, boxPrice: 160000, stock: 100, boxStock: 20, lowStock: 10, desc: "Yangi qulupnay bilan tayyorlangan, yengil va tetiklantiruvchi ta'm.", popular: true, image: "" },
+  { id: "p2", name: "Limonli sorbet", categoryId: "c1", price: 14000, wholesalePrice: 10000, boxPrice: 150000, stock: 80, boxStock: 15, lowStock: 10, desc: "Muzdek limon sorbeti, yozgi kunlar uchun ideal.", popular: false, image: "" },
+  { id: "p3", name: "Shokoladli", categoryId: "c2", price: 16000, wholesalePrice: 12000, boxPrice: 170000, stock: 120, boxStock: 25, lowStock: 10, desc: "Belgiya qora shokoladi qo'shilgan klassik ta'm.", popular: true, image: "" },
+  { id: "p4", name: "Fistashkali", categoryId: "c3", price: 18000, wholesalePrice: 13500, boxPrice: 195000, stock: 60, boxStock: 12, lowStock: 10, desc: "Haqiqiy fistashka yong'og'idan tayyorlangan premium ta'm.", popular: true, image: "" },
+  { id: "p5", name: "Bananli split", categoryId: "c4", price: 22000, wholesalePrice: 17000, boxPrice: 240000, stock: 50, boxStock: 10, lowStock: 10, desc: "Banan, krem va qovurilgan yong'oq bilan boy tarkib.", popular: false, image: "" },
+  { id: "p6", name: "Ko'k moviy", categoryId: "c4", price: 17000, wholesalePrice: 12500, boxPrice: 180000, stock: 70, boxStock: 14, lowStock: 10, desc: "Ko'k mevalar aralashmasidan tayyorlangan maxsus retsept.", popular: false, image: "" },
 ];
 const DEFAULT_ADMIN_AUTH = { username: "Svitlogorie.Urgench", password: "Kk19931997" };
 
