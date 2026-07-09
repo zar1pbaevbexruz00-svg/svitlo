@@ -1261,6 +1261,8 @@ function ProductsTab({ products, setProducts, categories }) {
             <Field placeholder="Optom (ulgurji) narxi — dona (so'm)" type="number" value={form.wholesalePrice} onChange={(e) => setForm({ ...form, wholesalePrice: e.target.value })} />
             <Field placeholder="Korobka narxi (so'm)" type="number" value={form.boxPrice} onChange={(e) => setForm({ ...form, boxPrice: e.target.value })} />
             <Field placeholder="Dona (qoldiq soni)" type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
+            <Field placeholder="Korobka (qoldiq soni)" type="number" value={form.boxStock} onChange={(e) => setForm({ ...form, boxStock: e.target.value })} />
+            <Field placeholder="Kam qoldiq ogohlantirish" type="number" value={form.lowStock} onChange={(e) => setForm({ ...form, lowStock: e.target.value })} />
             <Field placeholder="Tavsif" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} />
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 8 }}>
