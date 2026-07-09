@@ -281,7 +281,8 @@ function App() {
 
       {mode === "client" && (
         <ClientView
-          info={info} categories={categories} products={products} orders={orders} setOrders={persist.orders}
+          info={info} categories={categories} products={products} setProducts={persist.products}
+          orders={orders} setOrders={persist.orders}
           onSearchSubmit={handleSearchSubmit}
         />
       )}
