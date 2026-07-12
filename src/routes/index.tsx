@@ -455,7 +455,7 @@ function ImageGallery({ images, name, color, emoji }) {
 /* ---------------- LOGIN MODAL ---------------- */
 function LoginModal({ kind, onClose, onSubmit }) {
   const [u, setU] = useState(""); const [p, setP] = useState(""); const [err, setErr] = useState(null);
-  const submit = () => { const e = onSubmit(u, p); if (e) setErr(e); };
+  const submit = async () => { try { const e = await onSubmit(u, p); if (e) setErr(e); } catch (ex) { setErr(ex?.message || "Xatolik"); } };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
       <div className="glass" style={{ borderRadius: 24, padding: 26, width: "100%", maxWidth: 340, background: "#151518" }}>
