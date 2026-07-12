@@ -36,7 +36,7 @@ function AuthPage() {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        await supabase.rpc("claim_first_admin").catch(() => {});
+        try { await supabase.rpc("claim_first_admin"); } catch {}
       }
     })();
 
@@ -74,7 +74,7 @@ function AuthPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: em, password });
         if (error) throw error;
-        await supabase.rpc("claim_first_admin").catch(() => {});
+        try { await supabase.rpc("claim_first_admin"); } catch {}
         navigate({ to: "/" });
       }
     } catch (err: any) {

@@ -303,7 +303,7 @@ function App() {
       : `${raw.toLowerCase()}@svitlo.local`;
     const { error } = await supabase.auth.signInWithPassword({ email, password: p });
     if (error) return "Login yoki parol noto'g'ri";
-    await supabase.rpc("claim_first_admin").catch(() => {});
+    try { await supabase.rpc("claim_first_admin"); } catch {}
     const { isAdmin: a } = await currentUserIsAdmin();
     if (!a) return "Bu foydalanuvchida admin huquqi yo'q";
     setIsAdmin(true);
