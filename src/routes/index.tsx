@@ -181,6 +181,7 @@ function getProductImages(p) {
 
 /* ---------------- root ---------------- */
 function App() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState("client");
   const [loaded, setLoaded] = useState(false);
   const [loginModal, setLoginModal] = useState(null);
@@ -195,7 +196,16 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [debtPayments, setDebtPayments] = useState([]);
   const [adminAuth, setAdminAuth] = useState(DEFAULT_ADMIN_AUTH);
+  const [session, setSession] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
+  const stateSetters = {
+    pi_info: setInfo, pi_categories: setCategories, pi_products: setProducts,
+    pi_shops: setShops, pi_employees: setEmployees, pi_vehicles: setVehicles,
+    pi_orders: setOrders, pi_debt_payments: setDebtPayments,
+  };
+
+  // Initial load: localStorage first (instant), then cloud blobs override
   useEffect(() => {
     setInfo(safeGet("pi_info", DEFAULT_INFO));
     setCategories(safeGet("pi_categories", DEFAULT_CATEGORIES));
@@ -206,7 +216,6 @@ function App() {
     setOrders(safeGet("pi_orders", []));
     setDebtPayments(safeGet("pi_debt_payments", []));
     const storedAuth = safeGet("pi_admin_auth", DEFAULT_ADMIN_AUTH);
-    // Force-migrate old default credentials to the new ones
     if (storedAuth?.username === "svitlo_gorieee" && storedAuth?.password === "admin2026") {
       setAdminAuth(DEFAULT_ADMIN_AUTH);
       safeSet("pi_admin_auth", DEFAULT_ADMIN_AUTH);
@@ -214,10 +223,43 @@ function App() {
       setAdminAuth(storedAuth);
     }
     setLoaded(true);
+
+    // Cloud load
+    (async () => {
+      const blobs = await loadAllBlobs();
+      for (const key of CLOUD_KEYS) {
+        if (blobs[key] !== undefined && stateSetters[key]) {
+          stateSetters[key](blobs[key]);
+          safeSet(key, blobs[key]);
+        }
+      }
+    })();
   }, []);
 
-  // Real-time cross-tab sync: when another tab (admin/employee/client) updates
-  // localStorage, mirror it here so status changes reflect live.
+  // Realtime cloud sync
+  useEffect(() => {
+    const unsub = subscribeInfo((key, value) => {
+      if (value === undefined) return;
+      const setter = stateSetters[key];
+      if (setter) { setter(value); safeSet(key, value); }
+    });
+    return unsub;
+  }, []);
+
+  // Auth state → admin mode
+  useEffect(() => {
+    const applySession = async (sess) => {
+      setSession(sess);
+      if (!sess) { setIsAdmin(false); return; }
+      const { isAdmin: a } = await currentUserIsAdmin();
+      setIsAdmin(a);
+    };
+    supabase.auth.getSession().then(({ data }) => applySession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => applySession(sess));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // Cross-tab localStorage sync
   useEffect(() => {
     const map = {
       pi_info: setInfo, pi_categories: setCategories, pi_products: setProducts,
@@ -232,27 +274,42 @@ function App() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  const cloudSave = (key, value) => { saveBlob(key, value); };
   const persist = {
-    info: (v) => { setInfo(v); safeSet("pi_info", v); },
-    categories: (v) => { setCategories(v); safeSet("pi_categories", v); },
-    products: (v) => { setProducts(v); safeSet("pi_products", v); },
-    shops: (v) => { setShops(v); safeSet("pi_shops", v); },
-    employees: (v) => { setEmployees(v); safeSet("pi_employees", v); },
-    vehicles: (v) => { setVehicles(v); safeSet("pi_vehicles", v); },
-    orders: (v) => { setOrders(v); safeSet("pi_orders", v); },
-    debtPayments: (v) => { setDebtPayments(v); safeSet("pi_debt_payments", v); },
+    info: (v) => { setInfo(v); safeSet("pi_info", v); cloudSave("pi_info", v); },
+    categories: (v) => { setCategories(v); safeSet("pi_categories", v); cloudSave("pi_categories", v); },
+    products: (v) => { setProducts(v); safeSet("pi_products", v); cloudSave("pi_products", v); },
+    shops: (v) => { setShops(v); safeSet("pi_shops", v); cloudSave("pi_shops", v); },
+    employees: (v) => { setEmployees(v); safeSet("pi_employees", v); cloudSave("pi_employees", v); },
+    vehicles: (v) => { setVehicles(v); safeSet("pi_vehicles", v); cloudSave("pi_vehicles", v); },
+    orders: (v) => { setOrders(v); safeSet("pi_orders", v); cloudSave("pi_orders", v); },
+    debtPayments: (v) => { setDebtPayments(v); safeSet("pi_debt_payments", v); cloudSave("pi_debt_payments", v); },
     adminAuth: (v) => { setAdminAuth(v); safeSet("pi_admin_auth", v); },
   };
 
   const handleSearchSubmit = (value) => {
     const v = value.trim().toLowerCase();
-    if (v === "admin") setLoginModal("admin");
-    else if (v === "ishchi") setLoginModal("employee");
+    if (v === "admin") {
+      if (isAdmin) setMode("admin");
+      else navigate({ to: "/auth" });
+    } else if (v === "ishchi") setLoginModal("employee");
   };
 
-  const tryAdminLogin = (u, p) => {
-    if (u === adminAuth.username && p === adminAuth.password) { setMode("admin"); setLoginModal(null); return null; }
-    return "Login yoki parol noto'g'ri";
+  const tryAdminLogin = async (u, p) => {
+    // Supabase-backed admin login
+    const raw = (u || "").trim();
+    const email = raw.includes("@")
+      ? (raw.split("@")[1].includes(".") ? raw.toLowerCase() : `${raw.split("@")[0].toLowerCase()}@${raw.split("@")[1].toLowerCase()}.local`)
+      : `${raw.toLowerCase()}@svitlo.local`;
+    const { error } = await supabase.auth.signInWithPassword({ email, password: p });
+    if (error) return "Login yoki parol noto'g'ri";
+    await supabase.rpc("claim_first_admin").catch(() => {});
+    const { isAdmin: a } = await currentUserIsAdmin();
+    if (!a) return "Bu foydalanuvchida admin huquqi yo'q";
+    setIsAdmin(true);
+    setMode("admin");
+    setLoginModal(null);
+    return null;
   };
   const tryEmployeeLogin = (u, p) => {
     const emp = employees.find((e) => e.username === u && e.password === p);
