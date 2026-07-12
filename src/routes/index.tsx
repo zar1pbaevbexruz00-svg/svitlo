@@ -347,7 +347,7 @@ function App() {
       )}
       {mode === "admin" && (
         <AdminView
-          onLogout={() => setMode("client")}
+          onLogout={async () => { await supabase.auth.signOut(); setIsAdmin(false); setMode("client"); }}
           info={info} setInfo={persist.info}
           categories={categories} setCategories={persist.categories}
           products={products} setProducts={persist.products}
