@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Search, ShoppingBag, Plus, Minus, Trash2, MapPin, Package,
@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { supabase } from "@/integrations/supabase/client";
+import { CLOUD_KEYS, loadAllBlobs, saveBlob, subscribeInfo, currentUserIsAdmin } from "@/lib/cloud-sync";
 
 export const Route = createFileRoute("/")({
   head: () => ({
